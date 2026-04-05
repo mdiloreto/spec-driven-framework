@@ -1,0 +1,13 @@
+{
+  "name": "spec-driven-framework",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Portable hybrid framework for spec-driven development.",
+  "scripts": {
+    "discover": "node ./src/cli/discover.mjs",
+    "graph": "node ./src/cli/graph.mjs",
+    "impact": "node ./src/cli/impact.mjs",
+    "check": "node ./src/cli/discover.mjs --adapter demo --repo . > /dev/null && node ./src/cli/graph.mjs --adapter demo --repo . > /dev/null"
+  }
+}

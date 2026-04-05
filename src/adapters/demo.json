@@ -1,0 +1,41 @@
+{
+  "name": "demo",
+  "description": "Demo adapter for the example repository embedded in this project.",
+  "specRoots": [
+    "examples/demo-repo/specs"
+  ],
+  "typePatterns": [
+    {
+      "match": "examples/demo-repo/specs/vision.md",
+      "type": "brief"
+    },
+    {
+      "match": "examples/demo-repo/specs/features/*.md",
+      "type": "feature"
+    },
+    {
+      "match": "examples/demo-repo/specs/architecture/*.md",
+      "type": "architecture"
+    },
+    {
+      "match": "examples/demo-repo/specs/validation/*.md",
+      "type": "validation"
+    }
+  ],
+  "dependencyAliases": {
+    "F-01": "examples/demo-repo/specs/features/f-01-income.md",
+    "F-01 Income": "examples/demo-repo/specs/features/f-01-income.md",
+    "F-02": "examples/demo-repo/specs/features/f-02-dashboard.md",
+    "F-02 Dashboard": "examples/demo-repo/specs/features/f-02-dashboard.md"
+  },
+  "relations": {
+    "featureDependsOnArchitecture": [
+      "examples/demo-repo/specs/architecture/domain.md",
+      "examples/demo-repo/specs/architecture/api.md"
+    ],
+    "featureDependsOnBrief": [
+      "examples/demo-repo/specs/vision.md"
+    ],
+    "decisionFeedsArchitecture": []
+  }
+}
