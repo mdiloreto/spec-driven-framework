@@ -89,7 +89,24 @@ export class StateManager {
       return StateManager.emptyState();
     }
     const raw = this.fs.readFile(this.statePath);
-    return JSON.parse(raw) as IloState;
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!StateManager.isValidState(parsed)) {
+      // Corrupted or incompatible state — start fresh
+      return StateManager.emptyState();
+    }
+
+    return parsed;
+  }
+
+  private static isValidState(value: unknown): value is IloState {
+    if (typeof value !== "object" || value === null) return false;
+    const obj = value as Record<string, unknown>;
+    return (
+      obj.version === "1.0" &&
+      typeof obj.updatedAt === "string" &&
+      Array.isArray(obj.changes)
+    );
   }
 
   private static emptyState(): IloState {

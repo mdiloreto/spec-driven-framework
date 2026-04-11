@@ -31,4 +31,21 @@ describe("parseArgs", () => {
     const result = parseArgs(["ilo", "run"]);
     expect(getFlag(result, "change")).toBeUndefined();
   });
+
+  it("parses --key=value flags", () => {
+    const result = parseArgs(["ilo", "run", "--change=add-auth", "--format=json"]);
+    expect(getFlag(result, "change")).toBe("add-auth");
+    expect(getFlag(result, "format")).toBe("json");
+    expect(result.positional).toEqual(["ilo", "run"]);
+  });
+
+  it("handles --key=value with empty value", () => {
+    const result = parseArgs(["--name="]);
+    expect(getFlag(result, "name")).toBe("");
+  });
+
+  it("handles --key=value with value containing =", () => {
+    const result = parseArgs(["--expr=a=b"]);
+    expect(getFlag(result, "expr")).toBe("a=b");
+  });
 });

@@ -118,7 +118,7 @@ export class ArtifactChecker {
     cache?: ArtifactExistenceCache,
   ): ArtifactCheckResult {
     const specsDir = join(changePath, "specs");
-    const specFiles = this.safeListDir(specsDir).filter((f) => f.endsWith(".md"));
+    const specFiles = this.collectSpecFiles(specsDir);
     const exists = cache?.get("specs")?.exists ?? specFiles.length > 0;
 
     if (!exists) {
@@ -126,15 +126,16 @@ export class ArtifactChecker {
     }
 
     const issues: string[] = [];
-    for (const file of specFiles) {
-      const content = this.safeRead(join(specsDir, file));
+    for (const filePath of specFiles) {
+      const content = this.safeRead(filePath);
       if (!content) continue;
 
+      const fileName = filePath.split("/").pop() ?? filePath;
       if (!hasHeading(content, "Requirement")) {
-        issues.push(`${file} has no Requirement sections`);
+        issues.push(`${fileName} has no Requirement sections`);
       }
       if (!content.includes("#### Scenario")) {
-        issues.push(`${file} has no Scenario sections — specs need testable scenarios`);
+        issues.push(`${fileName} has no Scenario sections — specs need testable scenarios`);
       }
     }
 
@@ -211,6 +212,29 @@ export class ArtifactChecker {
     } catch {
       return [];
     }
+  }
+
+  /** Collect .md files from specs/ and one level of subdirectories (e.g., specs/loop-engine/spec.md). */
+  private collectSpecFiles(specsDir: string): string[] {
+    const entries = this.safeListDir(specsDir);
+    const files: string[] = [];
+
+    for (const entry of entries) {
+      const entryPath = join(specsDir, entry);
+      if (entry.endsWith(".md")) {
+        files.push(entryPath);
+      } else {
+        // Check for subdirectory containing spec files
+        const subEntries = this.safeListDir(entryPath);
+        for (const sub of subEntries) {
+          if (sub.endsWith(".md")) {
+            files.push(join(entryPath, sub));
+          }
+        }
+      }
+    }
+
+    return files;
   }
 
   private static missing(artifact: ArtifactKind, message?: string): ArtifactCheckResult {

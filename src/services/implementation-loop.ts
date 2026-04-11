@@ -7,6 +7,7 @@ import type {
   GenerationRequest,
   ContextBundle,
   ChangeCheckResult,
+  ChangeStatus,
   ArtifactKind,
   OpenSpecClient,
   SpecGraph,
@@ -71,7 +72,7 @@ export class ImplementationLoop {
   public async run(): Promise<LoopResult> {
     const graph = await this.scan();
     const checkResults = await this.check();
-    const generationRequests = this.generate(checkResults);
+    const generationRequests = await this.generate(checkResults);
 
     const planner = new ExecutionPlanner(this.fs, graph);
     const executionPlan = planner.plan(this.stateManager.current);
@@ -129,8 +130,18 @@ export class ImplementationLoop {
         result.artifacts.map((a) => [a.artifact, this.checker.toArtifactState(a)]),
       ) as Record<ArtifactKind, { exists: boolean; valid: boolean; lastChecked: string; issues?: string[] }>;
 
+      // Only advance status for early-phase states; never regress in-progress/complete/blocked
+      const preservedStatuses: ChangeStatus[] = ["in-progress", "complete", "blocked"];
+      const newStatus = preservedStatuses.includes(change.status)
+        ? change.status
+        : result.status === "complete"
+          ? "ready"
+          : change.status === "pending"
+            ? "checking"
+            : change.status;
+
       this.stateManager.updateChange(change.name, {
-        status: result.status === "complete" ? "ready" : change.status === "pending" ? "checking" : change.status,
+        status: newStatus,
         artifacts: artifactStates,
       });
 
@@ -140,7 +151,7 @@ export class ImplementationLoop {
     return results;
   }
 
-  public generate(checkResults: ChangeCheckResult[]): GenerationRequest[] {
+  public async generate(checkResults: ChangeCheckResult[]): Promise<GenerationRequest[]> {
     const requests: GenerationRequest[] = [];
     const artifactOrder: ArtifactKind[] = ["proposal", "design", "specs", "tasks"];
 
@@ -157,16 +168,32 @@ export class ImplementationLoop {
 
         if (priorsMissing) continue;
 
+        // Enrich context with openspec instructions when available
+        const context: Record<string, unknown> = { issues: artifact.issues };
+        try {
+          const enriched = await this.openspec.instructions(
+            artifact.artifact,
+            result.changeName,
+          );
+          context.instruction = enriched.instruction;
+          context.template = enriched.template;
+          context.openspecContext = enriched.context;
+          context.outputPath = enriched.outputPath;
+        } catch {
+          // OpenSpec instructions unavailable — fall back to built-in instruction
+        }
+
         requests.push({
           action: "generate",
           change: result.changeName,
           artifact: artifact.artifact,
-          context: { issues: artifact.issues },
-          instruction: this.buildGenerationInstruction(
-            result.changeName,
-            artifact.artifact,
-            artifact.issues,
-          ),
+          context,
+          instruction: (context.instruction as string | undefined)
+            ?? this.buildGenerationInstruction(
+              result.changeName,
+              artifact.artifact,
+              artifact.issues,
+            ),
         });
 
         this.stateManager.updateChange(result.changeName, { status: "generating" });
@@ -225,7 +252,7 @@ export class ImplementationLoop {
             { maxTokens: this.options.maxTokens },
           );
 
-          const prompt = this.buildExecutionPrompt(bundle);
+          const prompt = this.buildExecutionPrompt(bundle, assembler);
           const result = await backend.execute(prompt, {
             cwd: this.projectRoot,
           });
@@ -240,6 +267,8 @@ export class ImplementationLoop {
                 currentTask: undefined,
               });
             }
+            // Persist after each task so progress survives interruptions
+            this.stateManager.save();
             executed.push(`${waveChange.name}/${task.id}`);
           } else {
             this.emit(
@@ -290,12 +319,7 @@ export class ImplementationLoop {
     }
   }
 
-  private buildExecutionPrompt(bundle: ContextBundle): string {
-    const assembler = new ContextAssembler(
-      this.fs,
-      this.buildGraph(),
-      this.openspec,
-    );
+  private buildExecutionPrompt(bundle: ContextBundle, assembler: ContextAssembler): string {
     return assembler.formatAsMarkdown(bundle);
   }
 

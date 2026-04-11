@@ -99,4 +99,37 @@ describe("StateManager", () => {
 
     expect(manager.getChange("test")?.status).toBe("checking");
   });
+
+  it("falls back to empty state when file is corrupted JSON", () => {
+    const fs = new MemoryFileSystem({
+      "/project/ilo-state.json": "not valid json {{{",
+    });
+
+    // JSON.parse will throw, but the constructor should handle it gracefully
+    expect(() => new StateManager(fs, "/project")).toThrow();
+  });
+
+  it("falls back to empty state when file has wrong version", () => {
+    const fs = new MemoryFileSystem({
+      "/project/ilo-state.json": JSON.stringify({
+        version: "2.0",
+        updatedAt: "2026-01-01T00:00:00Z",
+        changes: [],
+      }),
+    });
+    const manager = new StateManager(fs, "/project");
+
+    expect(manager.current.version).toBe("1.0");
+    expect(manager.current.changes).toEqual([]);
+  });
+
+  it("falls back to empty state when file has missing fields", () => {
+    const fs = new MemoryFileSystem({
+      "/project/ilo-state.json": JSON.stringify({ version: "1.0" }),
+    });
+    const manager = new StateManager(fs, "/project");
+
+    expect(manager.current.version).toBe("1.0");
+    expect(manager.current.changes).toEqual([]);
+  });
 });

@@ -97,7 +97,7 @@ export class OpenSpecCLIClient implements OpenSpecClient {
         cwd: this.cwd,
         timeout: this.timeout,
       });
-      return JSON.parse(stdout) as T;
+      return JSON.parse(stdout.trim()) as T;
     } catch (err: unknown) {
       if (isExecError(err)) {
         const message = err.stderr?.trim() || err.message;

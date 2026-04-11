@@ -156,10 +156,11 @@ export class ContextAssembler {
 
     while (queue.length > 0) {
       const current = queue.shift()!;
-      const incomingEdges = this.graph.edges.filter(
+      // Follow outgoing depends_on/blocks edges: from -> to means "from depends on to"
+      const dependencyEdges = this.graph.edges.filter(
         (e) => e.from === current && isOrderingEdge(e),
       );
-      for (const edge of incomingEdges) {
+      for (const edge of dependencyEdges) {
         if (!visited.has(edge.to)) {
           visited.add(edge.to);
           queue.push(edge.to);
@@ -176,8 +177,9 @@ export class ContextAssembler {
 
     while (queue.length > 0) {
       const current = queue.shift()!;
-      const outgoingEdges = this.graph.edges.filter((e) => e.to === current);
-      for (const edge of outgoingEdges) {
+      // Follow reverse edges: find nodes that depend ON current
+      const dependentEdges = this.graph.edges.filter((e) => e.to === current);
+      for (const edge of dependentEdges) {
         if (!visited.has(edge.from)) {
           visited.add(edge.from);
           queue.push(edge.from);
@@ -205,18 +207,45 @@ export class ContextAssembler {
 
   private readSpecFiles(changePath: string): string[] {
     const specsDir = join(changePath, "specs");
+    const filePaths = this.collectSpecFiles(specsDir);
+    return filePaths.map((f) => {
+      try {
+        return this.fs.readFile(f);
+      } catch {
+        return "";
+      }
+    }).filter(Boolean);
+  }
+
+  /** Collect .md files from specs/ and one level of subdirectories. */
+  private collectSpecFiles(specsDir: string): string[] {
+    let entries: string[];
     try {
-      const files = this.fs.listDir(specsDir).filter((f) => f.endsWith(".md"));
-      return files.map((f) => {
-        try {
-          return this.fs.readFile(join(specsDir, f));
-        } catch {
-          return "";
-        }
-      }).filter(Boolean);
+      entries = this.fs.listDir(specsDir);
     } catch {
       return [];
     }
+
+    const files: string[] = [];
+    for (const entry of entries) {
+      const entryPath = join(specsDir, entry);
+      if (entry.endsWith(".md")) {
+        files.push(entryPath);
+      } else {
+        let subEntries: string[];
+        try {
+          subEntries = this.fs.listDir(entryPath);
+        } catch {
+          continue;
+        }
+        for (const sub of subEntries) {
+          if (sub.endsWith(".md")) {
+            files.push(join(entryPath, sub));
+          }
+        }
+      }
+    }
+    return files;
   }
 
   private readSpecContent(node: GraphNode): SpecContent {

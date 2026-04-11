@@ -15,14 +15,20 @@ export function parseArgs(argv: string[]): ParsedArgs {
     const arg = argv[i]!;
 
     if (arg.startsWith("--")) {
-      const key = arg.slice(2);
-      const next = argv[i + 1];
+      const raw = arg.slice(2);
+      const eqIdx = raw.indexOf("=");
 
-      if (next && !next.startsWith("--")) {
-        flags.set(key, next);
-        i++;
+      if (eqIdx !== -1) {
+        // --key=value form
+        flags.set(raw.slice(0, eqIdx), raw.slice(eqIdx + 1));
       } else {
-        flags.set(key, true);
+        const next = argv[i + 1];
+        if (next && !next.startsWith("--")) {
+          flags.set(raw, next);
+          i++;
+        } else {
+          flags.set(raw, true);
+        }
       }
     } else {
       positional.push(arg);
