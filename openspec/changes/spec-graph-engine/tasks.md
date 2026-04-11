@@ -1,0 +1,71 @@
+# Tasks
+
+## 1. Project Setup
+
+- [ ] 1.1 Initialize TypeScript project with `tsconfig.json` (strict mode, ES modules, NodeNext module resolution)
+- [ ] 1.2 Configure `tsup` for building CLI binary and library entry point
+- [ ] 1.3 Configure `vitest` for unit and integration tests
+- [ ] 1.4 Create `package.json` with `sdf` binary entry point and `exports` field for library usage
+- [ ] 1.5 Set up project directory structure: `src/graph/`, `src/cli/`, `src/cli/commands/`
+
+## 2. Type Definitions
+
+- [ ] 2.1 Define `SpecGraph`, `GraphNode`, `GraphEdge`, `EdgeKind` types in `src/graph/types.ts`
+- [ ] 2.2 Define `RawNode`, `RawEdge`, `ScanResult` types for scanner output
+- [ ] 2.3 Define `FileReader` interface for I/O injection
+- [ ] 2.4 Define `ImpactResult`, `WaveGroup` types for analysis output
+- [ ] 2.5 Write type tests (type-level assertions that types are correct)
+
+## 3. Graph Scanner
+
+- [ ] 3.1 Implement `FileReader` using Node.js `fs` module in `src/graph/scanner.ts`
+- [ ] 3.2 Implement capability discovery: scan `openspec/specs/` for directories with `spec.md`
+- [ ] 3.3 Implement change discovery: scan `openspec/changes/` for directories with `.openspec.yaml`, skip `archive/`
+- [ ] 3.4 Implement artifact existence detection for change nodes (proposal, design, specs, tasks)
+- [ ] 3.5 Implement YAML frontmatter parser for `depends-on` field extraction
+- [ ] 3.6 Implement markdown cross-reference extraction (links pointing to other openspec files)
+- [ ] 3.7 Implement delta spec impact detection (change's `specs/<capability>/` → impacts edge)
+- [ ] 3.8 Write unit tests for scanner: capability discovery, change discovery, frontmatter parsing, link extraction, edge cases (no frontmatter, malformed YAML, empty dirs)
+
+## 4. Graph Builder
+
+- [ ] 4.1 Implement `buildGraph()` in `src/graph/builder.ts`: takes scanner output, produces `SpecGraph`
+- [ ] 4.2 Implement edge deduplication (same from/to/kind = single edge)
+- [ ] 4.3 Implement node validation (reject edges referencing non-existent nodes)
+- [ ] 4.4 Write unit tests for builder: dedup, validation, empty graph, single node, complex graph
+
+## 5. Graph Analysis
+
+- [ ] 5.1 Implement cycle detection using Kahn's algorithm in `src/graph/analysis.ts`
+- [ ] 5.2 Implement `computeImpact()`: BFS upstream context + downstream affected
+- [ ] 5.3 Implement `topologicalSort()`: returns ordered node list (fails on cycles)
+- [ ] 5.4 Implement `groupWaves()`: groups topologically sorted nodes into parallel execution waves
+- [ ] 5.5 Write unit tests: cycle detection (no cycle, direct cycle, transitive cycle), impact analysis (direct, transitive, multiple changed), topological sort (linear, diamond, independent), wave grouping (all scenarios from spec)
+
+## 6. Graph Manifest
+
+- [ ] 6.1 Implement `writeManifest()` in `src/graph/manifest.ts`: writes `SpecGraph` to `spec-graph.json`
+- [ ] 6.2 Implement `readManifest()`: reads and validates `spec-graph.json`
+- [ ] 6.3 Implement stale detection: compare manifest mtime vs spec file mtimes
+- [ ] 6.4 Write unit tests for manifest read/write and stale detection
+
+## 7. CLI Commands
+
+- [ ] 7.1 Implement CLI argument parser in `src/cli/args.ts` (subcommand routing: `graph build`, `graph impact`, etc.)
+- [ ] 7.2 Implement `graph build` command in `src/cli/commands/build.ts`
+- [ ] 7.3 Implement `graph impact --changed <path> [--json]` command in `src/cli/commands/impact.ts`
+- [ ] 7.4 Implement `graph order [--json]` command in `src/cli/commands/order.ts`
+- [ ] 7.5 Implement `graph show [--json]` command in `src/cli/commands/show.ts`
+- [ ] 7.6 Write integration tests: run CLI against a fixture OpenSpec project, verify JSON output
+
+## 8. Library Entry Point
+
+- [ ] 8.1 Create `src/graph/index.ts` re-exporting public API: `buildGraph`, `computeImpact`, `topologicalSort`, `groupWaves`, `readManifest`, `writeManifest`
+- [ ] 8.2 Create `src/index.ts` re-exporting graph module for library consumers
+- [ ] 8.3 Verify `tsup` build produces both ESM and CJS outputs with correct type declarations
+
+## 9. Integration Testing
+
+- [ ] 9.1 Create test fixture: minimal OpenSpec project with 3 capabilities, 3 changes, known dependencies
+- [ ] 9.2 End-to-end test: scan → build → analyze → manifest write/read cycle
+- [ ] 9.3 Edge case test: empty project, single spec, circular deps, missing frontmatter

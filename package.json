@@ -1,13 +1,51 @@
 {
   "name": "spec-driven-framework",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Portable hybrid framework for spec-driven development.",
+  "description": "Spec-graph engine and implementation loop orchestrator for spec-driven development, built on OpenSpec.",
+  "bin": {
+    "sdf": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./clients": {
+      "import": "./dist/clients/index.js",
+      "types": "./dist/clients/index.d.ts"
+    },
+    "./services": {
+      "import": "./dist/services/index.js",
+      "types": "./dist/services/index.d.ts"
+    },
+    "./lib": {
+      "import": "./dist/lib/index.js",
+      "types": "./dist/lib/index.d.ts"
+    }
+  },
   "scripts": {
-    "discover": "node ./src/cli/discover.mjs",
-    "graph": "node ./src/cli/graph.mjs",
-    "impact": "node ./src/cli/impact.mjs",
-    "check": "node ./src/cli/discover.mjs --adapter demo --repo . > /dev/null && node ./src/cli/graph.mjs --adapter demo --repo . > /dev/null"
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "sdf": "tsx src/cli/main.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

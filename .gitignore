@@ -1,3 +1,7 @@
-.worktrees/
 node_modules/
 dist/
+.worktrees/
+*.tsbuildinfo
+ilo-state.json
+.claude/
+.opencode/

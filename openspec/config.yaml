@@ -1,0 +1,42 @@
+schema: sdf-workflow
+
+context: |
+  Project: spec-driven-framework
+  Language: TypeScript (strict mode, ES modules)
+  Runtime: Node.js 20+
+  Build: tsup (bundler), vitest (tests)
+  Architecture: Three-layer — OpenSpec (standard) → Spec-Graph (our extension) → Orchestration (ILO)
+
+  Key concept: This framework extends OpenSpec with cross-spec dependency graph tracking
+  and an implementation loop orchestrator (ILO). OpenSpec handles individual change workflows
+  (proposal → design → specs → tasks). Our extension adds:
+  1. spec-graph: persistent DAG tracking cross-change and cross-spec dependencies, impact analysis
+  2. ILO: orchestration agent that checks PFB/EAD exist, generates missing artifacts,
+     creates implementation plans, and executes them in topological order
+
+  Delivery: CLI first, then Claude Code skills and OpenCode skills
+
+  The spec-graph reads OpenSpec's specs/ and changes/ directories, extracts dependency
+  declarations from frontmatter, builds a queryable DAG, computes impact analysis
+  (upstream context + downstream affected), and supports topological execution ordering
+  with parallel wave grouping.
+
+rules:
+  proposal:
+    - Include clear scope boundaries (what's in vs out)
+    - Reference the prototype code in git history (commit 9bfd117) where relevant
+    - Identify which prototype modules are being evolved vs replaced
+  design:
+    - All modules must be pure TypeScript with strict types
+    - Prefer composition over inheritance
+    - Every public API must have explicit input/output types
+    - Design for testability — all I/O through injected interfaces
+    - Reference OpenSpec's artifact format and CLI integration points
+  specs:
+    - Use Given/When/Then scenarios with concrete examples
+    - Include edge cases (circular deps, missing specs, malformed frontmatter)
+    - Reference real-world examples from AGC and FinArg repos where useful
+  tasks:
+    - Group tasks into waves that can run in parallel where independent
+    - Each task should be completable in a single coding session
+    - Include test tasks alongside implementation tasks
