@@ -7,7 +7,7 @@ import type {
   ArtifactState,
   OpenSpecClient,
   SpecGraph,
-} from "../types/index.js";
+} from "../types/index";
 
 /**
  * Validates artifact completeness and structural coherence for OpenSpec changes.

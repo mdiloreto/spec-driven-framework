@@ -9,7 +9,7 @@ import type {
   IloState,
   SpecGraph,
   GraphNode,
-} from "../types/index.js";
+} from "../types/index";
 
 /**
  * Produces an ordered execution plan by combining spec-graph topological order

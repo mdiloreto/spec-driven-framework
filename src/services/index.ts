@@ -1,7 +1,9 @@
-export { StateManager } from "./state-manager.js";
-export { ArtifactChecker } from "./checker.js";
-export { ContextAssembler } from "./context-assembler.js";
-export type { ContextAssemblerOptions } from "./context-assembler.js";
-export { ExecutionPlanner } from "./execution-planner.js";
-export { ImplementationLoop } from "./implementation-loop.js";
-export type { LoopEvent, LoopEventHandler, LoopResult } from "./implementation-loop.js";
+export { StateManager } from "./state-manager";
+export { JournalManager } from "./journal-manager";
+export { TraceManager } from "./trace-manager";
+export { ArtifactChecker } from "./checker";
+export { ContextAssembler } from "./context-assembler";
+export type { ContextAssemblerOptions } from "./context-assembler";
+export { ExecutionPlanner } from "./execution-planner";
+export { ImplementationLoop } from "./implementation-loop";
+export type { LoopEvent, LoopEventHandler, LoopResult } from "./implementation-loop";

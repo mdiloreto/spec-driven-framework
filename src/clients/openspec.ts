@@ -7,7 +7,7 @@ import type {
   OpenSpecChangeListItem,
   OpenSpecSpecListItem,
   OpenSpecValidationResult,
-} from "../types/index.js";
+} from "../types/index";
 
 const execFileAsync = promisify(execFile);
 

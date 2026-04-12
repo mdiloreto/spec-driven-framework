@@ -3,6 +3,7 @@ dist/
 .worktrees/
 *.tsbuildinfo
 ilo-state.json
+.sdf/
 .claude/
 .opencode/
 

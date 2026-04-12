@@ -8,7 +8,7 @@ CLI commands for running, inspecting, and managing the implementation loop.
 
 ### Requirement: Run command
 
-The system SHALL provide an `ilo run` command that executes the full implementation loop (scan → check → generate → plan → execute). It MUST support `--change <name>` to target a single change, `--dry-run` to skip mutations, and `--json` for machine-parseable output.
+The system SHALL provide an `ilo run` command that executes the full implementation loop (scan → check → generate → plan → execute). It MUST support `--change <name>` to target a single change, `--dry-run` to skip mutations, `--debug-trace` to persist raw backend traces for debugging, and `--json` for machine-parseable output.
 
 #### Scenario: Full loop run
 
@@ -25,6 +25,12 @@ The system SHALL provide an `ilo run` command that executes the full implementat
 - **WHEN** the user runs `ilo run --dry-run`
 - **THEN** the system SHALL output the plan without modifying state or requesting generation
 
+#### Scenario: Debug traces enabled
+
+- **WHEN** the user runs `ilo run --debug-trace`
+- **THEN** the system SHALL persist raw backend execution traces under `.sdf/traces/`
+- **AND** the default journal SHALL remain the SDF-level execution log
+
 ### Requirement: Status command
 
 The system SHALL provide an `ilo status` command that displays the current state of all changes in the loop. Output MUST show each change's status, artifact states, blocked-by relationships, and completed task counts.
@@ -37,7 +43,7 @@ The system SHALL provide an `ilo status` command that displays the current state
 #### Scenario: JSON status
 
 - **WHEN** the user runs `ilo status --json`
-- **THEN** the output SHALL be the full `ilo-state.json` content
+- **THEN** the output SHALL be the full `.sdf/ilo-state.json` content
 
 ### Requirement: Check command
 

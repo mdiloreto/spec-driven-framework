@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { parseArgs } from "./args.js";
-import { IloCommand } from "./commands/ilo.js";
+import { parseArgs } from "./args";
+import { IloCommand } from "./commands/ilo";
 
 const args = parseArgs(process.argv.slice(2));
 const subcommand = args.positional[0];
@@ -51,6 +51,7 @@ Commands:
 Options:
   --json                     Machine-parseable JSON output
   --dry-run                  Skip mutations (ilo commands)
+  --debug-trace              Capture raw backend traces under .sdf/traces/
   --help, -h                 Show this help
 `.trim());
 }

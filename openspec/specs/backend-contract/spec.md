@@ -29,7 +29,7 @@ Backends SHALL NOT be treated as the source of truth for loop state, task comple
 
 - **WHEN** a backend finishes executing task `1.2`
 - **THEN** the backend MAY report success
-- **BUT** only the ILO SHALL update `ilo-state.json` to record task completion
+- **BUT** only the ILO SHALL update `.sdf/ilo-state.json` to record task completion
 
 ### Requirement: Backend consumes assembled context
 
@@ -49,3 +49,23 @@ The framework SHALL support multiple backend implementations without requiring c
 
 - **WHEN** a project switches from Claude Code to OpenCode as the execution runtime
 - **THEN** the ILO scan, check, generate, plan, and execute phases SHALL remain unchanged
+
+### Requirement: Backend trace boundary
+
+Backends MAY expose rich streaming traces, tool-call events, or session transcripts, but the framework SHALL treat those as optional backend details rather than authoritative orchestration state. The core runtime contract SHALL require only structured completion data plus optional session continuity.
+
+#### Scenario: Backend emits rich trace data
+
+- **WHEN** a backend provides tool traces or conversation history
+- **THEN** the ILO MAY summarize or reference them in `.sdf/ilo-journal.ndjson`
+- **BUT** loop correctness SHALL NOT depend on persisting the raw trace
+
+### Requirement: Optional trace payloads
+
+Backends MAY return optional raw trace payloads in addition to their structured result. The loop MAY persist those payloads under `.sdf/traces/` when debug capture is enabled, but SHALL ignore them for orchestration correctness.
+
+#### Scenario: Backend returns trace payload
+
+- **WHEN** a backend returns a structured trace payload with its result
+- **THEN** the ILO MAY store it as debug evidence
+- **BUT** the ILO SHALL continue to rely on checkpoint state, journal events, and task success/failure for orchestration

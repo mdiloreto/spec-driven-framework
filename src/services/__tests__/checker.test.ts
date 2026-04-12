@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { ArtifactChecker } from "../checker.js";
-import { MemoryFileSystem } from "./helpers.js";
+import { ArtifactChecker } from "../checker";
+import { MemoryFileSystem } from "./helpers";
 
 function makeChangeFiles(changePath: string, overrides: Record<string, string> = {}): Record<string, string> {
   const defaults: Record<string, string> = {

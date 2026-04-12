@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The core orchestration loop that drives the implementation lifecycle across multiple OpenSpec changes. Delegates single-change artifact management to OpenSpec (`openspec status`, `openspec validate`, `openspec instructions`). Adds what OpenSpec does not: cross-change orchestration, dependency-ordered execution, spec-graph-aware context assembly, and loop state persistence across sessions.
+The core orchestration loop that drives the implementation lifecycle across multiple OpenSpec changes. Delegates single-change artifact management to OpenSpec (`openspec status`, `openspec validate`, `openspec instructions`). Adds what OpenSpec does not: cross-change orchestration, dependency-ordered execution, spec-graph-aware context assembly, and durable loop runtime persistence across sessions.
 
 ## Requirements
 
@@ -86,18 +86,85 @@ The system SHALL walk the execution plan wave by wave, assembling a context bund
 - **WHEN** all tasks in change `add-auth` are complete
 - **THEN** the change status SHALL transition to `complete`
 
+### Requirement: Hidden runtime directory
+
+The system SHALL store ILO runtime artifacts under a hidden `.sdf/` directory at the project root. The runtime directory MUST contain `.sdf/ilo-state.json` as the authoritative checkpoint and `.sdf/ilo-journal.ndjson` as the append-only execution journal.
+
+#### Scenario: Runtime artifacts written
+
+- **WHEN** a non-dry-run loop execution persists state
+- **THEN** it SHALL write `.sdf/ilo-state.json`
+- **AND** append journal entries to `.sdf/ilo-journal.ndjson`
+
 ### Requirement: Loop state persistence
 
-The system SHALL persist loop state to `ilo-state.json` after every phase transition. The state MUST survive process restarts and allow the loop to resume from the last phase.
+The system SHALL persist loop state to `.sdf/ilo-state.json` after every phase transition and task-boundary transition. The state MUST survive process restarts and allow the loop to resume from the last durable phase or task checkpoint.
 
 #### Scenario: Resume after interruption
 
 - **WHEN** the loop was interrupted during the execute phase of `add-auth` with 3 of 5 tasks complete
 - **THEN** restarting the loop SHALL resume from task 4, not restart from the beginning
 
+#### Scenario: Mid-task interruption
+
+- **WHEN** the loop had already marked task `1.2` as `currentTask` before invoking the backend
+- **AND** the process exits before completion is recorded
+- **THEN** the checkpoint SHALL still indicate execute-phase progress for that task
+- **AND** the next run MAY resume or re-drive task `1.2` instead of losing the in-flight state
+
+### Requirement: Execution journal
+
+The system SHALL append structured execution events to `.sdf/ilo-journal.ndjson`. Journal entries MUST record SDF-level workflow transitions and backend invocation summaries, but SHALL NOT require raw LLM transcripts or hidden model reasoning to be persisted.
+
+#### Scenario: Task lifecycle events
+
+- **WHEN** the loop starts, runs, and completes task `1.1`
+- **THEN** the journal SHALL contain phase transition entries
+- **AND** task start/completion entries
+- **AND** backend invocation metadata for the task
+
+#### Scenario: Backend logging boundary
+
+- **WHEN** a coding backend returns a large transcript or streaming tool trace
+- **THEN** the framework SHALL treat `.sdf/ilo-journal.ndjson` as an SDF execution log, not a full trace sink
+- **AND** it MAY persist a concise backend summary
+- **BUT** it SHALL NOT require chain-of-thought or raw transcript capture for correctness
+
+### Requirement: Optional debug trace capture
+
+The system MAY persist raw backend traces under `.sdf/traces/` when explicitly requested. Debug trace capture MUST be opt-in and SHALL NOT change the authoritative checkpoint or journal semantics.
+
+#### Scenario: Debug trace capture
+
+- **WHEN** the loop runs with debug trace capture enabled
+- **THEN** the system SHALL write per-task trace artifacts under `.sdf/traces/<runId>/...`
+- **AND** the journal MAY reference the trace file paths
+
+### Requirement: Optional backend summarizer hook
+
+The system MAY use a pluggable summarizer hook to compress backend transcripts or traces into concise backend summaries. If the summarizer is unavailable or fails, the loop SHALL fall back to a local heuristic summary and continue execution.
+
+#### Scenario: Summarizer failure
+
+- **WHEN** a configured backend summarizer errors during task execution
+- **THEN** the loop SHALL still complete the task lifecycle
+- **AND** it SHALL record a fallback summary instead of failing the run
+
+### Requirement: Plan drift reconciliation
+
+The system SHALL detect when a persisted task plan no longer matches the current `tasks.md` content for a change. When plan drift occurs, the loop MUST reconcile stored progress against the new task set before continuing execution.
+
+#### Scenario: Plan rebase clears stale progress
+
+- **WHEN** a change previously recorded completed tasks `1.1` and `1.2`
+- **AND** the current plan no longer contains those task IDs
+- **THEN** the loop SHALL remove the stale completed task IDs from checkpoint state
+- **AND** clear an invalid `currentTask`
+- **AND** append a `plan_rebased` journal event describing the reconciliation
+
 ### Requirement: Dry run mode
 
-The system SHALL support a `--dry-run` flag that runs scan, check, and plan phases but skips generate and execute. Dry run MUST NOT modify `ilo-state.json`.
+The system SHALL support a `--dry-run` flag that runs scan, check, and plan phases but skips generate and execute. Dry run MUST NOT modify `.sdf/ilo-state.json` or `.sdf/ilo-journal.ndjson`.
 
 #### Scenario: Dry run output
 

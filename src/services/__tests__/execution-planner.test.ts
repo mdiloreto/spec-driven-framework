@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { ExecutionPlanner } from "../execution-planner.js";
-import { MemoryFileSystem } from "./helpers.js";
-import type { SpecGraph } from "../../types/index.js";
-import type { IloState } from "../../types/index.js";
+import { ExecutionPlanner } from "../execution-planner";
+import { MemoryFileSystem } from "./helpers";
+import type { SpecGraph } from "../../types/index";
+import type { IloState } from "../../types/index";
 
 function emptyState(): IloState {
-  return { version: "1.0", updatedAt: "", changes: [] };
+  return { version: "1.1", updatedAt: "", changes: [] };
 }
 
 function makeGraph(overrides: Partial<SpecGraph> = {}): SpecGraph {
@@ -133,7 +133,7 @@ describe("ExecutionPlanner", () => {
         "/changes/test/tasks.md": "## 1.\n- [ ] 1.1 First\n- [ ] 1.2 Second",
       });
       const state: IloState = {
-        version: "1.0",
+        version: "1.1",
         updatedAt: "",
         changes: [{
           name: "test",

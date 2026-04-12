@@ -8,7 +8,7 @@ CLI commands for running, inspecting, and managing the implementation loop.
 
 ### Requirement: Run command
 
-The system SHALL provide an `ilo run` command that executes the full implementation loop (scan → check → generate → plan → execute). It MUST support `--change <name>` to target a single change, `--dry-run` to skip mutations, and `--json` for machine-parseable output.
+The system SHALL provide an `ilo run` command that executes the full implementation loop (scan → check → generate → plan → execute). It MUST support `--change <name>` to target a single change, `--dry-run` to skip mutations, `--debug-trace` to capture raw backend traces, and `--json` for machine-parseable output.
 
 #### Scenario: Full loop run
 
@@ -37,7 +37,7 @@ The system SHALL provide an `ilo status` command that displays the current state
 #### Scenario: JSON status
 
 - **WHEN** the user runs `ilo status --json`
-- **THEN** the output SHALL be the full `ilo-state.json` content
+- **THEN** the output SHALL be the full `.sdf/ilo-state.json` content
 
 ### Requirement: Check command
 

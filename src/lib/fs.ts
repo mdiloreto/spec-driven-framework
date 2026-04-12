@@ -3,8 +3,10 @@ import {
   writeFileSync,
   existsSync,
   readdirSync,
+  mkdirSync,
 } from "node:fs";
-import type { FileSystem } from "../types/index.js";
+import { dirname } from "node:path";
+import type { FileSystem } from "../types/index";
 
 /**
  * Production FileSystem backed by Node.js fs.
@@ -16,6 +18,7 @@ export class NodeFileSystem implements FileSystem {
   }
 
   public writeFile(path: string, content: string): void {
+    mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, content, "utf-8");
   }
 

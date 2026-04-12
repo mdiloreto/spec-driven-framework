@@ -9,7 +9,8 @@ OpenSpec provides a workflow for creating spec artifacts (proposal, design, spec
 - EAD (design.md) completeness checker — validates designs exist and are consistent with their proposals and impacted capability specs; generates missing designs
 - Implementation plan (tasks.md) generator — creates ordered task lists from PFB + EAD, ensuring tasks cover all design decisions and spec requirements
 - Execution driver that walks tasks.md checkboxes, assembling context from the spec-graph (upstream dependencies, related specs) for each task
-- Loop state tracking — persistent state of which changes are pending, in-progress, blocked, or complete
+- Loop state tracking — hidden runtime checkpoints and journals for which changes are pending, in-progress, blocked, or complete
+- Optional raw backend trace capture and summarization hooks for debugging agent execution without making traces authoritative
 - CLI commands: `ilo run`, `ilo status`, `ilo check`, `ilo plan`
 - Skill definitions for Claude Code and OpenCode
 
@@ -34,6 +35,6 @@ _(none — no existing OpenSpec specs to modify)_
 - New TypeScript package, depends on spec-graph-engine
 - Integrates with OpenSpec CLI for artifact state queries
 - Reads and writes to OpenSpec `changes/` directories (creates proposal.md, design.md, tasks.md when missing)
-- Produces `ilo-state.json` for loop state persistence
+- Produces `.sdf/ilo-state.json` and `.sdf/ilo-journal.ndjson` for loop runtime persistence
 - Claude Code skills in `.claude/skills/`, OpenCode skills in `.opencode/`
 - Future: agent orchestration protocol for delegating task execution to AI coding agents

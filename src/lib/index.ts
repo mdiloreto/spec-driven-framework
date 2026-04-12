@@ -1,1 +1,1 @@
-export { NodeFileSystem } from "./fs.js";
+export { NodeFileSystem } from "./fs";

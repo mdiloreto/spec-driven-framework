@@ -1,6 +1,14 @@
-import type { ArtifactKind } from "./index.js";
+import type { ArtifactKind } from "./index";
 
 // -- ILO State --
+
+export type LoopPhase =
+  | "scan"
+  | "check"
+  | "review"
+  | "generate"
+  | "plan"
+  | "execute";
 
 export interface ArtifactState {
   exists: boolean;
@@ -25,12 +33,48 @@ export interface ChangeState {
   currentTask?: string;
   completedTasks: string[];
   blockedBy: string[];
+  backendSessionId?: string;
+  lastError?: string;
+  lastTransitionAt?: string;
+  planFingerprint?: string;
 }
 
 export interface IloState {
-  version: "1.0";
+  version: "1.1";
+  activeRunId?: string;
+  currentPhase?: LoopPhase;
+  lastTransitionAt?: string;
   updatedAt: string;
   changes: ChangeState[];
+}
+
+export type JournalEventType =
+  | "phase_started"
+  | "phase_completed"
+  | "generation_requested"
+  | "execution_plan_built"
+  | "plan_rebased"
+  | "task_started"
+  | "backend_invoked"
+  | "backend_completed"
+  | "backend_summary"
+  | "backend_trace_captured"
+  | "task_completed"
+  | "task_failed"
+  | "run_completed";
+
+export interface JournalEntry {
+  seq: number;
+  timestamp: string;
+  runId: string;
+  event: JournalEventType;
+  phase?: LoopPhase;
+  changeName?: string;
+  taskId?: string;
+  backend?: string;
+  sessionId?: string;
+  summary?: string;
+  data?: unknown;
 }
 
 // -- Context Assembly --
@@ -107,12 +151,37 @@ export interface BlockedChange {
 export interface LoopOptions {
   target?: string;
   dryRun?: boolean;
+  debugTrace?: boolean;
   format?: "json" | "markdown";
   maxTokens?: number;
   backend?: ILOBackend;
+  summarizer?: BackendSummarizer;
 }
 
 // -- Backend --
+
+export interface BackendSummaryInput {
+  backend: string;
+  changeName: string;
+  taskId: string;
+  sessionId?: string;
+  prompt: string;
+  output: string;
+  trace?: unknown;
+  success: boolean;
+  error?: string;
+}
+
+export interface BackendSummaryResult {
+  summary: string;
+  provider?: string;
+}
+
+export interface BackendSummarizer {
+  summarize(
+    input: BackendSummaryInput,
+  ): Promise<string | BackendSummaryResult | undefined>;
+}
 
 export interface BackendOptions {
   cwd?: string;
@@ -125,6 +194,7 @@ export interface BackendResult {
   output: string;
   sessionId?: string;
   error?: string;
+  trace?: unknown;
 }
 
 export interface ILOBackend {

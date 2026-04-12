@@ -88,7 +88,7 @@ The system SHALL walk the execution plan wave by wave, assembling a context bund
 
 ### Requirement: Loop state persistence
 
-The system SHALL persist loop state to `ilo-state.json` after every phase transition. The state MUST survive process restarts and allow the loop to resume from the last phase.
+The system SHALL persist loop state to `.sdf/ilo-state.json` after every phase transition. The state MUST survive process restarts and allow the loop to resume from the last phase.
 
 #### Scenario: Resume after interruption
 
@@ -97,9 +97,13 @@ The system SHALL persist loop state to `ilo-state.json` after every phase transi
 
 ### Requirement: Dry run mode
 
-The system SHALL support a `--dry-run` flag that runs scan, check, and plan phases but skips generate and execute. Dry run MUST NOT modify `ilo-state.json`.
+The system SHALL support a `--dry-run` flag that runs scan, check, and plan phases but skips generate and execute. Dry run MUST NOT modify `.sdf/ilo-state.json` or `.sdf/ilo-journal.ndjson`.
 
 #### Scenario: Dry run output
 
 - **WHEN** the user runs the loop with `--dry-run`
 - **THEN** the system SHALL output the execution plan without modifying state or requesting artifact generation
+
+### Requirement: Optional backend debug traces and summaries
+
+The system MAY capture raw backend traces under `.sdf/traces/` when explicitly requested, and MAY use a separate summarizer to compress backend transcripts into journal summaries. Neither feature SHALL become the authoritative orchestration state.

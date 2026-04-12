@@ -35,6 +35,7 @@ npm run sdf -- ilo plan
 - `openspec/specs/` - durable framework and capability contracts
 - `openspec/changes/` - concrete implementation initiatives
 - `docs/` - narrative documentation, plans, and architecture notes
+- `.sdf/` - hidden runtime checkpoints, journals, and optional debug traces (gitignored)
 
 ## Documentation
 

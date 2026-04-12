@@ -6,9 +6,11 @@ import type {
   ChangeState,
   ArtifactState,
   OpenSpecChangeListItem,
-} from "../types/index.js";
+} from "../types/index";
 
+const RUNTIME_DIR = ".sdf";
 const STATE_FILE = "ilo-state.json";
+const LEGACY_STATE_FILE = "ilo-state.json";
 const ARTIFACT_KINDS: readonly ArtifactKind[] = [
   "proposal",
   "design",
@@ -23,13 +25,15 @@ const ARTIFACT_KINDS: readonly ArtifactKind[] = [
  */
 export class StateManager {
   private readonly statePath: string;
+  private readonly legacyStatePath: string;
   private state: IloState;
 
   constructor(
     private readonly fs: FileSystem,
     private readonly projectRoot: string,
   ) {
-    this.statePath = join(this.projectRoot, STATE_FILE);
+    this.statePath = join(this.projectRoot, RUNTIME_DIR, STATE_FILE);
+    this.legacyStatePath = join(this.projectRoot, LEGACY_STATE_FILE);
     this.state = this.load();
   }
 
@@ -42,12 +46,26 @@ export class StateManager {
   }
 
   public updateChange(name: string, update: Partial<ChangeState>): void {
+    const transitionedAt = StateManager.now();
     this.state = {
       ...this.state,
       changes: this.state.changes.map((c) =>
-        c.name === name ? { ...c, ...update } : c,
+        c.name === name
+          ? { ...c, ...update, lastTransitionAt: transitionedAt }
+          : c,
       ),
-      updatedAt: new Date().toISOString(),
+      lastTransitionAt: transitionedAt,
+      updatedAt: transitionedAt,
+    };
+  }
+
+  public updateLoop(update: Partial<Pick<IloState, "activeRunId" | "currentPhase">>): void {
+    const transitionedAt = StateManager.now();
+    this.state = {
+      ...this.state,
+      ...update,
+      lastTransitionAt: transitionedAt,
+      updatedAt: transitionedAt,
     };
   }
 
@@ -67,14 +85,14 @@ export class StateManager {
     this.state = {
       ...this.state,
       changes: merged,
-      updatedAt: new Date().toISOString(),
+      updatedAt: StateManager.now(),
     };
   }
 
   public save(): void {
     const updated: IloState = {
       ...this.state,
-      updatedAt: new Date().toISOString(),
+      updatedAt: StateManager.now(),
     };
     this.fs.writeFile(this.statePath, JSON.stringify(updated, null, 2) + "\n");
     this.state = updated;
@@ -85,34 +103,76 @@ export class StateManager {
   }
 
   private load(): IloState {
-    if (!this.fs.exists(this.statePath)) {
+    const stateSource = this.fs.exists(this.statePath)
+      ? this.statePath
+      : this.fs.exists(this.legacyStatePath)
+        ? this.legacyStatePath
+        : undefined;
+
+    if (!stateSource) return StateManager.emptyState();
+
+    try {
+      const raw = this.fs.readFile(stateSource);
+      const parsed: unknown = JSON.parse(raw);
+      return StateManager.normalizeState(parsed) ?? StateManager.emptyState();
+    } catch {
       return StateManager.emptyState();
     }
-    const raw = this.fs.readFile(this.statePath);
-    const parsed: unknown = JSON.parse(raw);
-
-    if (!StateManager.isValidState(parsed)) {
-      // Corrupted or incompatible state — start fresh
-      return StateManager.emptyState();
-    }
-
-    return parsed;
   }
 
   private static isValidState(value: unknown): value is IloState {
     if (typeof value !== "object" || value === null) return false;
     const obj = value as Record<string, unknown>;
     return (
-      obj.version === "1.0" &&
+      obj.version === "1.1" &&
       typeof obj.updatedAt === "string" &&
       Array.isArray(obj.changes)
     );
   }
 
+  private static normalizeState(value: unknown): IloState | undefined {
+    if (StateManager.isValidState(value)) return value;
+    if (typeof value !== "object" || value === null) return undefined;
+
+    const obj = value as Record<string, unknown>;
+    if (
+      obj.version !== "1.0" ||
+      typeof obj.updatedAt !== "string" ||
+      !Array.isArray(obj.changes)
+    ) {
+      return undefined;
+    }
+
+    return {
+      version: "1.1",
+      updatedAt: obj.updatedAt,
+      changes: obj.changes.filter(StateManager.isLegacyChangeState).map((change) => ({
+        ...change,
+        lastTransitionAt: undefined,
+        backendSessionId: undefined,
+        lastError: undefined,
+        planFingerprint: undefined,
+      })),
+    };
+  }
+
+  private static isLegacyChangeState(value: unknown): value is ChangeState {
+    if (typeof value !== "object" || value === null) return false;
+    const obj = value as Record<string, unknown>;
+    return (
+      typeof obj.name === "string" &&
+      typeof obj.status === "string" &&
+      typeof obj.artifacts === "object" &&
+      obj.artifacts !== null &&
+      Array.isArray(obj.completedTasks) &&
+      Array.isArray(obj.blockedBy)
+    );
+  }
+
   private static emptyState(): IloState {
     return {
-      version: "1.0",
-      updatedAt: new Date().toISOString(),
+      version: "1.1",
+      updatedAt: StateManager.now(),
       changes: [],
     };
   }
@@ -133,5 +193,9 @@ export class StateManager {
       completedTasks: [],
       blockedBy: [],
     };
+  }
+
+  private static now(): string {
+    return new Date().toISOString();
   }
 }

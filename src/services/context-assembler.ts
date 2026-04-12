@@ -9,7 +9,7 @@ import type {
   SpecGraph,
   GraphNode,
   GraphEdge,
-} from "../types/index.js";
+} from "../types/index";
 
 export interface ContextAssemblerOptions {
   maxTokens?: number;

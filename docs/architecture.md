@@ -30,7 +30,7 @@ flowchart TD
 
     subgraph ILO["Implementation Loop Orchestrator"]
         direction TB
-        SCAN["1. SCAN<br/>rebuild graph, read changes,<br/>merge into ilo-state.json"]
+        SCAN["1. SCAN<br/>rebuild graph, read changes,<br/>merge into .sdf/ilo-state.json"]
         CHECK["2. CHECK<br/>structural validation<br/>(ArtifactChecker)"]
         REVIEW["3. REVIEW (optional)<br/>semantic coherence<br/>(CoherenceReviewer + Backend)"]
         GENERATE["4. GENERATE<br/>emit generation requests<br/>for missing/invalid artifacts"]
@@ -50,7 +50,9 @@ flowchart TD
     end
 
     subgraph State["Persistence"]
-        ILO_STATE["ilo-state.json<br/>per-change status,<br/>completed tasks,<br/>blocking deps"]
+        ILO_STATE[".sdf/ilo-state.json<br/>checkpoint state,<br/>phase/task progress,<br/>blocking deps"]
+        ILO_JOURNAL[".sdf/ilo-journal.ndjson<br/>append-only SDF events,<br/>backend summaries"]
+        ILO_TRACES[".sdf/traces/<br/>optional raw backend traces"]
     end
 
     %% Data flow
@@ -66,6 +68,10 @@ flowchart TD
     SCAN -->|read/write| ILO_STATE
     CHECK -->|update| ILO_STATE
     EXECUTE -->|update| ILO_STATE
+    SCAN -->|append| ILO_JOURNAL
+    CHECK -->|append| ILO_JOURNAL
+    EXECUTE -->|append| ILO_JOURNAL
+    EXECUTE -->|debug only| ILO_TRACES
 
     SG_SCAN --> SG_BUILD --> SG_ANALYSIS
     SG_BUILD --> SG_MANIFEST
@@ -101,7 +107,7 @@ flowchart TD
 
 | Phase | What it does | Delegates to |
 |---|---|---|
-| **1. Scan** | Rebuilds spec-graph, reads OpenSpec change list, merges into `ilo-state.json` | Spec-Graph (`build()`), OpenSpec (`list --json`) |
+| **1. Scan** | Rebuilds spec-graph, reads OpenSpec change list, merges into `.sdf/ilo-state.json` | Spec-Graph (`build()`), OpenSpec (`list --json`) |
 | **2. Check** | Validates artifact structural completeness (headings, sections, checkboxes) | `ArtifactChecker`, OpenSpec (`status --json`) |
 | **3. Review** *(optional)* | Semantic coherence validation — alignment, contradictions, completeness | `CoherenceReviewer` → `ILOBackend` (LLM) |
 | **4. Generate** | Emits structured generation requests for missing/invalid artifacts | OpenSpec (`instructions --json`) for prompts |
@@ -161,7 +167,10 @@ Token budget truncation removes least-relevant context when the bundle exceeds `
 - Parses `tasks.md` checkbox format into structured task items
 - Uses spec-graph topological sort to determine change execution order
 - Groups independent changes into parallel waves (Kahn's algorithm)
-- Skips already-completed tasks (from `ilo-state.json`)
+- Skips already-completed tasks (from `.sdf/ilo-state.json`)
+- Writes append-only execution history to `.sdf/ilo-journal.ndjson`
+- Logs SDF workflow transitions plus concise backend summaries by default, not raw LLM traces
+- Optionally captures raw backend traces under `.sdf/traces/` when `--debug-trace` is enabled
 
 ## Data Flow Summary
 
@@ -183,7 +192,9 @@ flowchart LR
 
     subgraph Outputs
         SGJ["spec-graph.json"]
-        ISJ["ilo-state.json"]
+        ISJ[".sdf/ilo-state.json"]
+        IJ[".sdf/ilo-journal.ndjson"]
+        IT[".sdf/traces/"]
         GENREQ["Generation requests<br/>(structured JSON)"]
         CTXBUNDLE["Context bundles<br/>(markdown/JSON)"]
         EXECPLAN["Execution plan<br/>(waves + tasks)"]
@@ -197,11 +208,14 @@ flowchart LR
     CHECKER --> ISJ
     CHANGES --> REVIEWER
     REVIEWER --> ISJ
+    REVIEWER --> IJ
+    REVIEWER --> IT
     GRAPH --> ASSEMBLER
     CHANGES --> ASSEMBLER
     ASSEMBLER --> CTXBUNDLE
     GRAPH --> PLANNER
     PLANNER --> EXECPLAN
+    PLANNER --> IJ
     CHECKER --> GENREQ
 end
 ```

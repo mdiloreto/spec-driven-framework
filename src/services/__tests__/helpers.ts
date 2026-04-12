@@ -1,4 +1,4 @@
-import type { FileSystem, OpenSpecClient, OpenSpecChangeStatus, OpenSpecArtifactInstructions, OpenSpecChangeListItem, OpenSpecSpecListItem, OpenSpecValidationResult } from "../../types/index.js";
+import type { FileSystem, OpenSpecClient, OpenSpecChangeStatus, OpenSpecArtifactInstructions, OpenSpecChangeListItem, OpenSpecSpecListItem, OpenSpecValidationResult } from "../../types/index";
 
 /**
  * In-memory FileSystem for testing.
