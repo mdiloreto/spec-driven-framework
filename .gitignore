@@ -5,3 +5,9 @@ dist/
 ilo-state.json
 .claude/
 .opencode/
+
+# Yarn
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+.pnp.*
