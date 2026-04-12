@@ -1,71 +1,45 @@
 # Spec-Driven Framework
 
-**Status:** Research & Architecture Design
-**Created:** 2026-04-05
-**Last Updated:** 2026-04-05
+Spec-driven execution engine built on OpenSpec.
 
----
+This project extends OpenSpec with two additional layers for end-to-end delivery:
 
-## Overview
+- a Spec Graph for cross-change and cross-capability dependency modeling
+- an Implementation Loop Orchestrator (ILO) for `scan -> check -> generate -> plan -> execute`
 
-A portable spec-driven development framework that provides agentic, automated workflows for translating existing feature specs into implementation. The framework handles spec discovery, feature relationship detection (dependency graph), artifact generation, implementation workflow orchestration, and validation -- all as repeatable, automated pipelines that work across multiple repos.
+## Core Concepts
 
-**Key insight:** Existing tools (Spec Kit, OpenSpec, Kiro, Taskmaster AI, Tessl) manage spec *creation*, but what's needed is a spec *execution engine* -- taking mature spec ecosystems and driving them through implementation.
+- OpenSpec: manages the artifact lifecycle within a single change
+- Spec Graph: models dependencies, impact, and execution ordering across changes
+- ILO: coordinates artifact checks, planning, context assembly, and execution flow
+- Backend agent: consumes ILO prompts to draft artifacts or implement code
 
----
+## Status
 
-## Goals
+Experimental. Core service boundaries and specs are in place, but some runtime surfaces are still being wired.
 
-- [ ] Define the architecture for the agentic execution pipeline (deterministic vs AI boundaries)
-- [ ] Build spec discovery and relationship detection (dependency graph) across repos
-- [ ] Implement artifact generation from specs (implementation slices, task plans)
-- [ ] Create implementation workflow orchestration (automated pipelines)
-- [ ] Build validation layer (spec compliance checking, test generation)
-- [ ] Support two target repos: AGC (Rust CLI, 23k LOC) and FinArg (Go/Next.js, pre-implementation)
-- [ ] Determine delivery mechanism: MCP server, Claude Code skills, standalone CLI, or hybrid
+## Quick Start
 
----
+```bash
+npm install
+npm test
+npm run typecheck
+npm run sdf -- --help
+npm run sdf -- ilo check
+npm run sdf -- ilo plan
+```
 
-## Current Status
+## Repository Structure
 
-**Phase:** Research & Architecture Design
-**Progress:** 10%
-**Current Focus:** Determining the right architecture -- whether to adopt existing tools for spec standardization while building custom execution workflows, or build end-to-end.
+- `src/` - framework implementation
+- `openspec/specs/` - durable framework and capability contracts
+- `openspec/changes/` - concrete implementation initiatives
+- `docs/` - narrative documentation, plans, and architecture notes
 
-### Target Repos
+## Documentation
 
-| Repo | Stack | LOC | Feature Specs | ADRs | Other |
-|------|-------|-----|---------------|------|-------|
-| AGC | Rust CLI | 23k | 23 | 34 | Capability matrix, 218 tests |
-| FinArg | Go/Next.js | Pre-impl | 15 | 12 | Domain model, schema contract, 3 OpenCode agents |
-
-### Research Completed
-
-Landscape analysis of: Spec Kit (GitHub), OpenSpec (Fission-AI), Kiro, Taskmaster AI, Tessl.
-Conclusion: these tools focus on spec creation/management, not spec execution.
-
-### Prototype (v0.1)
-
-Original TypeScript prototype exists in git history (commit `9bfd117`). Modules: discovery, graph, impact, slice generation. May be redesigned based on architecture decisions.
-
----
-
-## Key Decisions Pending
-
-1. Whether to adopt Spec Kit/OpenSpec for spec FORMAT standardization
-2. Architecture of the agentic execution pipeline
-3. How to implement feature relationship detection
-4. Where deterministic logic vs AI judgment boundaries should be
-5. Delivery mechanism: MCP server, Claude Code skills, standalone CLI, or hybrid
-
----
-
-## Links
-
-- [Workplan](./workplan.md)
-- [Implementation Log](./implementation-log.md)
-- [Testing Plan](./testing-plan.md)
-
----
-
-**Last Updated:** 2026-04-05
+- [Project Overview](./docs/project-overview.md)
+- [Information Architecture](./docs/information-architecture.md)
+- [Workplan](./docs/workplan.md)
+- [Implementation Log](./docs/implementation-log.md)
+- [Testing Plan](./docs/testing-plan.md)
