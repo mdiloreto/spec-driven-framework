@@ -2,8 +2,13 @@
 
 export type EdgeKind = "depends_on" | "impacts" | "extends" | "blocks";
 
+type GraphId = string & { readonly __brand: "GraphId" }
+
+type slugId = string
+
 export interface GraphNode {
-  id: string;
+  id: GraphId;
+  slug: slugId
   type: "capability" | "change";
   path: string;
   status?: "active" | "archived";
@@ -16,8 +21,8 @@ export interface GraphNode {
 }
 
 export interface GraphEdge {
-  from: string;
-  to: string;
+  from: GraphId;
+  to: GraphId;
   kind: EdgeKind;
   reason?: string;
 }
