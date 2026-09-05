@@ -16,6 +16,7 @@ import { StateManager } from "./state-manager.js";
 import { ArtifactChecker } from "./checker.js";
 import { ContextAssembler } from "./context-assembler.js";
 import { ExecutionPlanner } from "./execution-planner.js";
+import { collectChangeDependencies } from "../graph/index.js";
 
 /**
  * Events emitted during loop execution for observability.
@@ -56,7 +57,7 @@ export class ImplementationLoop {
     private readonly fs: FileSystem,
     private readonly projectRoot: string,
     private readonly openspec: OpenSpecClient,
-    private readonly buildGraph: () => SpecGraph,
+    private readonly buildGraph: () => SpecGraph | Promise<SpecGraph>,
     private readonly options: LoopOptions = {},
     onEvent?: LoopEventHandler,
   ) {
@@ -71,16 +72,21 @@ export class ImplementationLoop {
 
   public async run(): Promise<LoopResult> {
     const graph = await this.scan();
-    const checkResults = await this.check();
+    const checkResults = await this.check(graph);
     const generationRequests = await this.generate(checkResults);
 
-    const planner = new ExecutionPlanner(this.fs, graph);
-    const executionPlan = planner.plan(this.stateManager.current);
+    const planner = new ExecutionPlanner(this.fs, graph, this.projectRoot);
+    const executionPlan = planner.plan(this.stateManager.current, this.options.target);
     this.emit("plan", undefined, "Execution plan built", executionPlan);
 
     const executed: string[] = [];
     if (!this.options.dryRun && generationRequests.length === 0) {
-      const assembler = new ContextAssembler(this.fs, graph, this.openspec);
+      const assembler = new ContextAssembler(
+        this.fs,
+        graph,
+        this.openspec,
+        this.projectRoot,
+      );
       const completedIds = await this.execute(executionPlan, assembler);
       executed.push(...completedIds);
     }
@@ -103,7 +109,7 @@ export class ImplementationLoop {
   public async scan(): Promise<SpecGraph> {
     this.emit("scan", undefined, "Rebuilding spec-graph and reading changes");
 
-    const graph = this.buildGraph();
+    const graph = await this.buildGraph();
     const changes = await this.openspec.list();
     this.stateManager.mergeChanges(changes);
 
@@ -114,11 +120,16 @@ export class ImplementationLoop {
     return graph;
   }
 
-  public async check(): Promise<ChangeCheckResult[]> {
+  public async check(graph?: SpecGraph): Promise<ChangeCheckResult[]> {
     const results: ChangeCheckResult[] = [];
+    const selected = this.options.target
+      ? graph
+        ? collectChangeDependencies(graph, this.options.target)
+        : new Set([this.options.target])
+      : undefined;
 
     for (const change of this.stateManager.current.changes) {
-      if (this.options.target && change.name !== this.options.target) continue;
+      if (selected && !selected.has(change.name)) continue;
 
       this.emit("check", change.name, `Checking artifacts for ${change.name}`);
 
@@ -213,9 +224,9 @@ export class ImplementationLoop {
 
   public async buildPlan(): Promise<ExecutionPlan> {
     const graph = await this.scan();
-    await this.check();
-    const planner = new ExecutionPlanner(this.fs, graph);
-    return planner.plan(this.stateManager.current);
+    await this.check(graph);
+    const planner = new ExecutionPlanner(this.fs, graph, this.projectRoot);
+    return planner.plan(this.stateManager.current, this.options.target);
   }
 
   // -- Execution --

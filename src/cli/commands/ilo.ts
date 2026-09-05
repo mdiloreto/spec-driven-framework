@@ -10,6 +10,7 @@ import {
 } from "../../services/index.js";
 import type { LoopEvent } from "../../services/implementation-loop.js";
 import type { OpenSpecChangeListItem, SpecGraph } from "../../types/index.js";
+import { buildProjectGraph, writeManifest } from "../../graph/index.js";
 
 /**
  * Handles all `sdf ilo <subcommand>` CLI routing.
@@ -157,6 +158,7 @@ export class IloCommand {
   }
 
   private async plan(args: ParsedArgs): Promise<void> {
+    const target = getFlag(args, "change");
     const json = hasFlag(args, "json");
 
     const loop = new ImplementationLoop(
@@ -164,6 +166,7 @@ export class IloCommand {
       this.projectRoot,
       this.openspec,
       () => this.buildGraph(),
+      { target },
     );
 
     const plan = await loop.buildPlan();
@@ -225,16 +228,14 @@ export class IloCommand {
     }
   }
 
-  /**
-   * Stub graph builder — will be replaced with real spec-graph scanner.
-   */
-  private buildGraph(): SpecGraph {
-    return {
-      version: "1.0",
-      generatedAt: new Date().toISOString(),
-      nodes: [],
-      edges: [],
-    };
+  private async buildGraph(): Promise<SpecGraph> {
+    const { graph } = await buildProjectGraph(
+      this.projectRoot,
+      this.openspec,
+      this.fs,
+    );
+    writeManifest(this.fs, this.projectRoot, graph);
+    return graph;
   }
 
   private logEvent(event: LoopEvent): void {
