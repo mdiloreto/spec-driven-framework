@@ -3,11 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Portable hybrid framework for spec-driven development.",
+  "description": "CLI-first execution engine for repo-native specifications.",
   "scripts": {
-    "discover": "node ./src/cli/discover.mjs",
-    "graph": "node ./src/cli/graph.mjs",
-    "impact": "node ./src/cli/impact.mjs",
-    "check": "node ./src/cli/discover.mjs --adapter demo --repo . > /dev/null && node ./src/cli/graph.mjs --adapter demo --repo . > /dev/null"
+    "discover": "tsx ./src/cli/discover.ts",
+    "graph": "tsx ./src/cli/graph.ts",
+    "impact": "tsx ./src/cli/impact.ts",
+    "validate": "tsx ./src/cli/validate.ts",
+    "slice": "tsx ./src/cli/slice.ts",
+    "readiness": "tsx ./src/cli/readiness.ts",
+    "test": "node --import tsx --test src/core/validate.test.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit && npm test && tsx ./src/cli/discover.ts --adapter demo --repo . > /dev/null && tsx ./src/cli/graph.ts --adapter demo --repo . > /dev/null && tsx ./src/cli/impact.ts --adapter demo --repo . --changed examples/demo-repo/specs/features/f-01-income.md > /dev/null && tsx ./src/cli/validate.ts --adapter demo --repo . > /dev/null && tsx ./src/cli/slice.ts --adapter demo --repo . --changed examples/demo-repo/specs/features/f-01-income.md > /dev/null && tsx ./src/cli/readiness.ts --adapter demo --repo . > /dev/null"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.8.3"
   }
 }

@@ -1,12 +1,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-export function walk(dir, acc = []) {
+const IGNORED_DIRS = new Set(['.git', '.worktrees', 'node_modules', 'dist'])
+
+export function walk(dir: string, acc: string[] = []): string[] {
   if (!fs.existsSync(dir)) return acc
+
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === '.git' || entry.name === '.worktrees' || entry.name === 'node_modules' || entry.name === 'dist') {
-      continue
-    }
+    if (IGNORED_DIRS.has(entry.name)) continue
+
     const fullPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
       walk(fullPath, acc)
@@ -14,18 +16,20 @@ export function walk(dir, acc = []) {
       acc.push(fullPath)
     }
   }
+
   return acc
 }
 
-export function normalizeSlashes(value) {
+export function normalizeSlashes(value: string): string {
   return value.split(path.sep).join('/')
 }
 
-export function wildcardToRegex(pattern) {
+export function wildcardToRegex(pattern: string): RegExp {
   const escaped = pattern
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*\*/g, '::DOUBLE_STAR::')
     .replace(/\*/g, '[^/]*')
     .replace(/::DOUBLE_STAR::/g, '.*')
+
   return new RegExp(`^${escaped}$`)
 }
