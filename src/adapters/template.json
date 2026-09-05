@@ -10,6 +10,10 @@
       "type": "brief"
     },
     {
+      "match": "specs/features/*.md",
+      "type": "feature"
+    },
+    {
       "match": "specs/architecture/*.md",
       "type": "architecture"
     },
