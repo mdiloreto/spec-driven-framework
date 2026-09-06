@@ -6,10 +6,12 @@ import type { FileSystem, OpenSpecClient, OpenSpecChangeStatus, OpenSpecArtifact
  */
 export class MemoryFileSystem implements FileSystem {
   private files = new Map<string, string>();
+  private modifiedTimes = new Map<string, number>();
 
   constructor(initial: Record<string, string> = {}) {
     for (const [path, content] of Object.entries(initial)) {
       this.files.set(path, content);
+      this.modifiedTimes.set(path, 1);
     }
   }
 
@@ -23,6 +25,7 @@ export class MemoryFileSystem implements FileSystem {
 
   public writeFile(path: string, content: string): void {
     this.files.set(path, content);
+    this.modifiedTimes.set(path, Date.now());
   }
 
   public exists(path: string): boolean {
@@ -35,6 +38,7 @@ export class MemoryFileSystem implements FileSystem {
   }
 
   public listDir(path: string): string[] {
+    if (this.files.has(path)) throw new Error(`ENOTDIR: ${path}`);
     const dirPrefix = path.endsWith("/") ? path : path + "/";
     const entries = new Set<string>();
     for (const key of this.files.keys()) {
@@ -49,6 +53,17 @@ export class MemoryFileSystem implements FileSystem {
 
   public getWritten(path: string): string | undefined {
     return this.files.get(path);
+  }
+
+  public modifiedTime(path: string): number {
+    const time = this.modifiedTimes.get(path);
+    if (time === undefined) throw new Error(`ENOENT: ${path}`);
+    return time;
+  }
+
+  public setModifiedTime(path: string, time: number): void {
+    if (!this.files.has(path)) throw new Error(`ENOENT: ${path}`);
+    this.modifiedTimes.set(path, time);
   }
 }
 

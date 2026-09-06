@@ -5,6 +5,7 @@ export interface FileSystem {
   writeFile(path: string, content: string): void;
   exists(path: string): boolean;
   listDir(path: string): string[];
+  modifiedTime?(path: string): number;
 }
 
 export type ArtifactKind = "proposal" | "design" | "specs" | "tasks";

@@ -9,24 +9,34 @@
   },
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     },
     "./types": {
+      "types": "./dist/types/index.d.ts",
       "import": "./dist/types/index.js",
-      "types": "./dist/types/index.d.ts"
+      "require": "./dist/types/index.cjs"
     },
     "./clients": {
+      "types": "./dist/clients/index.d.ts",
       "import": "./dist/clients/index.js",
-      "types": "./dist/clients/index.d.ts"
+      "require": "./dist/clients/index.cjs"
     },
     "./services": {
+      "types": "./dist/services/index.d.ts",
       "import": "./dist/services/index.js",
-      "types": "./dist/services/index.d.ts"
+      "require": "./dist/services/index.cjs"
     },
     "./lib": {
+      "types": "./dist/lib/index.d.ts",
       "import": "./dist/lib/index.js",
-      "types": "./dist/lib/index.d.ts"
+      "require": "./dist/lib/index.cjs"
+    },
+    "./graph": {
+      "types": "./dist/graph/index.d.ts",
+      "import": "./dist/graph/index.js",
+      "require": "./dist/graph/index.cjs"
     }
   },
   "scripts": {
@@ -38,8 +48,15 @@
     "lint": "tsc --noEmit",
     "sdf": "tsx src/cli/main.ts"
   },
+  "dependencies": {
+    "graphology": "^0.26.0",
+    "graphology-components": "^1.5.4",
+    "graphology-dag": "^0.4.1",
+    "yaml": "^2.9.0"
+  },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "graphology-types": "^0.24.8",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",

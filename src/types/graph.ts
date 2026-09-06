@@ -1,10 +1,31 @@
 // -- Spec Graph Types --
 
-export type EdgeKind = "depends_on" | "impacts" | "extends" | "blocks";
+export const EDGE_KINDS = [
+  "depends_on",
+  "impacts",
+  "extends",
+  "blocks",
+] as const;
+
+export type EdgeKind = (typeof EDGE_KINDS)[number];
+export type GraphNodeType = "capability" | "change";
+export type GraphId = string & { readonly __brand: "GraphId" };
+
+export function createGraphId(type: GraphNodeType, slug: string): GraphId {
+  if (!slug || slug.includes(":")) {
+    throw new Error(`Invalid graph node slug: ${slug}`);
+  }
+  return `${type}:${slug}` as GraphId;
+}
+
+export function isGraphId(value: string): value is GraphId {
+  return /^(capability|change):[^:]+$/.test(value);
+}
 
 export interface GraphNode {
-  id: string;
-  type: "capability" | "change";
+  id: GraphId;
+  slug: string;
+  type: GraphNodeType;
   path: string;
   status?: "active" | "archived";
   artifacts?: {
@@ -16,8 +37,8 @@ export interface GraphNode {
 }
 
 export interface GraphEdge {
-  from: string;
-  to: string;
+  from: GraphId;
+  to: GraphId;
   kind: EdgeKind;
   reason?: string;
 }
@@ -32,8 +53,9 @@ export interface SpecGraph {
 // -- Scanner Types --
 
 export interface RawNode {
-  id: string;
-  type: "capability" | "change";
+  id: GraphId;
+  slug: string;
+  type: GraphNodeType;
   path: string;
   status?: "active" | "archived";
   artifacts?: {
@@ -45,8 +67,8 @@ export interface RawNode {
 }
 
 export interface RawEdge {
-  from: string;
-  to: string;
+  from: GraphId;
+  to: GraphId;
   kind: EdgeKind;
   reason?: string;
 }
@@ -68,9 +90,9 @@ export interface DependencyDeclaration {
 // -- Analysis Types --
 
 export interface ImpactResult {
-  changed: string[];
-  upstreamContext: string[];
-  downstreamAffected: string[];
+  changed: GraphId[];
+  upstreamContext: GraphId[];
+  downstreamAffected: GraphId[];
 }
 
 export type WaveGroup = GraphNode[][];

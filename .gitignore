@@ -4,6 +4,7 @@ dist/
 *.tsbuildinfo
 ilo-state.json
 .sdf/
+spec-graph.json
 .claude/
 .opencode/
 

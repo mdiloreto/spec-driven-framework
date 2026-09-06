@@ -8,6 +8,7 @@ import type {
   ILOBackend,
   SpecGraph,
 } from "../../types/index";
+import { createGraphId } from "../../types/index";
 import { MemoryFileSystem, StubOpenSpecClient } from "./helpers";
 
 function makeChangeFiles(changePath: string): Record<string, string> {
@@ -59,7 +60,12 @@ describe("ImplementationLoop", () => {
     const graph: SpecGraph = {
       version: "1.0",
       generatedAt: "2026-01-01T00:00:00Z",
-      nodes: [{ id: "add-auth", type: "change", path: changePath }],
+      nodes: [{
+        id: createGraphId("change", "add-auth"),
+        slug: "add-auth",
+        type: "change",
+        path: changePath,
+      }],
       edges: [],
     };
 
@@ -150,7 +156,12 @@ describe("ImplementationLoop", () => {
     const graph: SpecGraph = {
       version: "1.0",
       generatedAt: "2026-01-01T00:00:00Z",
-      nodes: [{ id: "add-auth", type: "change", path: changePath }],
+      nodes: [{
+        id: createGraphId("change", "add-auth"),
+        slug: "add-auth",
+        type: "change",
+        path: changePath,
+      }],
       edges: [],
     };
 
@@ -189,7 +200,12 @@ describe("ImplementationLoop", () => {
     const graph: SpecGraph = {
       version: "1.0",
       generatedAt: "2026-01-01T00:00:00Z",
-      nodes: [{ id: "add-auth", type: "change", path: changePath }],
+      nodes: [{
+        id: createGraphId("change", "add-auth"),
+        slug: "add-auth",
+        type: "change",
+        path: changePath,
+      }],
       edges: [],
     };
 

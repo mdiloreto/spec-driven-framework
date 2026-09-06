@@ -9,73 +9,113 @@ The Spec-Driven Framework (SDF) extends [OpenSpec](https://github.com/codebeaver
 
 OpenSpec owns the single-change workflow. SDF adds the multi-change coordination layer on top.
 
-## End-to-End Workflow
+## Three-Layer Architecture
+
+```mermaid
+block-beta
+  columns 3
+
+  block:layer3:3
+    columns 3
+    space ILO["ILO\nImplementation Loop Orchestrator"] space
+  end
+
+  block:layer2:3
+    columns 3
+    space SG["Spec-Graph Engine\nCross-change dependency DAG"] space
+  end
+
+  block:layer1:3
+    columns 3
+    space OS["OpenSpec\nSingle-change artifact lifecycle"] space
+  end
+
+  ILO --> SG
+  SG --> OS
+```
+
+## ILO Loop — Phase Pipeline
+
+```mermaid
+flowchart LR
+    SCAN["SCAN\n─────────\nrebuild graph\nread changes\nmerge state"]
+    CHECK["CHECK\n─────────\nstructural\nvalidation"]
+    REVIEW["REVIEW\n─────────\nsemantic\ncoherence\n(optional)"]
+    GENERATE["GENERATE\n─────────\nemit requests\nfor missing\nartifacts"]
+    PLAN["PLAN\n─────────\ntopological\nwave ordering"]
+    EXECUTE["EXECUTE\n─────────\nassemble context\ndrive backend\nper task"]
+
+    SCAN --> CHECK --> REVIEW --> GENERATE --> PLAN --> EXECUTE
+
+    style REVIEW stroke-dasharray: 5 5
+```
+
+## Data Flow
 
 ```mermaid
 flowchart TD
-    subgraph OpenSpec["OpenSpec (delegated)"]
-        OS_LIST["openspec list --json"]
-        OS_STATUS["openspec status --json"]
-        OS_INSTR["openspec instructions --json"]
-        OS_VALIDATE["openspec validate --json"]
-        OS_ARTIFACTS["changes/&lt;name&gt;/<br/>proposal.md, design.md,<br/>specs/, tasks.md"]
+    subgraph FS["File System (openspec/)"]
+        SPECS["specs/\ncapability specs"]
+        CHANGES["changes/\nproposal, design,\nspecs, tasks"]
     end
 
-    subgraph SpecGraph["Spec-Graph Engine"]
-        SG_SCAN["Graph Scanner<br/>reads specs/ + changes/,<br/>extracts depends-on frontmatter"]
-        SG_BUILD["Graph Builder<br/>nodes + edges + dedup +<br/>cycle detection"]
-        SG_ANALYSIS["Graph Analysis<br/>impact analysis (BFS),<br/>topological sort,<br/>wave grouping"]
-        SG_MANIFEST["spec-graph.json<br/>(persistent DAG)"]
+    subgraph CLI["OpenSpec CLI"]
+        LIST["list --json"]
+        STATUS["status --json"]
+        INSTR["instructions --json"]
     end
 
-    subgraph ILO["Implementation Loop Orchestrator"]
-        direction TB
-        SCAN["1. SCAN<br/>rebuild graph, read changes,<br/>merge into .sdf/ilo-state.json"]
-        CHECK["2. CHECK<br/>structural validation<br/>(ArtifactChecker)"]
-        REVIEW["3. REVIEW (optional)<br/>semantic coherence<br/>(CoherenceReviewer + Backend)"]
-        GENERATE["4. GENERATE<br/>emit generation requests<br/>for missing/invalid artifacts"]
-        PLAN["5. PLAN<br/>topological order → waves,<br/>parse tasks.md → task list"]
-        EXECUTE["6. EXECUTE<br/>assemble context bundle,<br/>drive backend per task"]
-
-        SCAN --> CHECK
-        CHECK --> REVIEW
-        REVIEW --> GENERATE
-        GENERATE --> PLAN
-        PLAN --> EXECUTE
+    subgraph Graph["Spec-Graph Engine"]
+        SCANNER["Scanner"] --> BUILDER["Builder"] --> ANALYSIS["Analysis"]
+        BUILDER --> MANIFEST[("spec-graph.json")]
     end
 
-    subgraph Backend["ILO Backend (LLM agent)"]
-        CC["Claude Code<br/>claude --bare -p ..."]
-        OC["OpenCode<br/>opencode run ..."]
+    subgraph Loop["ILO Loop"]
+        direction LR
+        S["Scan"] --> C["Check"] --> R["Review"] --> G["Generate"] --> P["Plan"] --> E["Execute"]
     end
 
-    subgraph State["Persistence"]
-        ILO_STATE[".sdf/ilo-state.json<br/>checkpoint state,<br/>phase/task progress,<br/>blocking deps"]
-        ILO_JOURNAL[".sdf/ilo-journal.ndjson<br/>append-only SDF events,<br/>backend summaries"]
-        ILO_TRACES[".sdf/traces/<br/>optional raw backend traces"]
+    subgraph Backends["LLM Backends"]
+        CC["Claude Code"]
+        OC["OpenCode"]
     end
 
-    %% Data flow
-    OS_LIST -->|change list| SCAN
-    SG_ANALYSIS -->|SpecGraph DAG| SCAN
-    OS_STATUS -->|artifact existence| CHECK
-    OS_INSTR -->|generation prompts| GENERATE
-    SG_ANALYSIS -->|upstream/downstream| EXECUTE
-    EXECUTE -->|context + prompt| CC
-    EXECUTE -->|context + prompt| OC
-    REVIEW -->|review prompt| CC
-    REVIEW -->|review prompt| OC
-    SCAN -->|read/write| ILO_STATE
-    CHECK -->|update| ILO_STATE
-    EXECUTE -->|update| ILO_STATE
-    SCAN -->|append| ILO_JOURNAL
-    CHECK -->|append| ILO_JOURNAL
-    EXECUTE -->|append| ILO_JOURNAL
-    EXECUTE -->|debug only| ILO_TRACES
+    subgraph Persistence["Persistence"]
+        STATE[(".sdf/ilo-state.json")]
+        JOURNAL[(".sdf/ilo-journal.ndjson")]
+        TRACES[".sdf/traces/"]
+    end
 
-    SG_SCAN --> SG_BUILD --> SG_ANALYSIS
-    SG_BUILD --> SG_MANIFEST
-    OS_ARTIFACTS --> SG_SCAN
+    %% File system feeds graph
+    SPECS --> SCANNER
+    CHANGES --> SCANNER
+
+    %% OpenSpec CLI feeds ILO phases
+    LIST --> S
+    STATUS --> C
+    INSTR --> G
+
+    %% Graph feeds ILO
+    ANALYSIS --> S
+    ANALYSIS --> E
+
+    %% ILO drives backends
+    E --> CC
+    E --> OC
+    R -.-> CC
+    R -.-> OC
+
+    %% State persistence
+    S <--> STATE
+    C --> STATE
+    E --> STATE
+    S --> JOURNAL
+    C --> JOURNAL
+    P --> JOURNAL
+    E --> JOURNAL
+    E -. debug only .-> TRACES
+
+    style R stroke-dasharray: 5 5
 ```
 
 ## Component Responsibilities
@@ -166,58 +206,29 @@ Token budget truncation removes least-relevant context when the bundle exceeds `
 
 - Parses `tasks.md` checkbox format into structured task items
 - Uses spec-graph topological sort to determine change execution order
-- Groups independent changes into parallel waves (Kahn's algorithm)
 - Skips already-completed tasks (from `.sdf/ilo-state.json`)
 - Writes append-only execution history to `.sdf/ilo-journal.ndjson`
 - Logs SDF workflow transitions plus concise backend summaries by default, not raw LLM traces
 - Optionally captures raw backend traces under `.sdf/traces/` when `--debug-trace` is enabled
+- Groups independent changes into parallel waves using Graphology topological generations
 
-## Data Flow Summary
+## Wave Execution Model
 
 ```mermaid
 flowchart LR
-    subgraph Inputs
-        SPECS["openspec/specs/"]
-        CHANGES["openspec/changes/"]
-        FRONTMATTER["depends-on frontmatter"]
+    subgraph W0["Wave 0 (no deps)"]
+        A["change: add-auth"]
+        B["change: add-logging"]
+    end
+    subgraph W1["Wave 1"]
+        C["change: add-payments\ndepends_on: add-auth"]
+    end
+    subgraph W2["Wave 2"]
+        D["change: add-dashboard\ndepends_on: add-payments,\nadd-logging"]
     end
 
-    subgraph Processing
-        GRAPH["Spec-Graph<br/>scan → build → analyze"]
-        CHECKER["ArtifactChecker<br/>structural validation"]
-        REVIEWER["CoherenceReviewer<br/>semantic validation"]
-        ASSEMBLER["ContextAssembler<br/>graph-aware bundles"]
-        PLANNER["ExecutionPlanner<br/>wave ordering"]
-    end
-
-    subgraph Outputs
-        SGJ["spec-graph.json"]
-        ISJ[".sdf/ilo-state.json"]
-        IJ[".sdf/ilo-journal.ndjson"]
-        IT[".sdf/traces/"]
-        GENREQ["Generation requests<br/>(structured JSON)"]
-        CTXBUNDLE["Context bundles<br/>(markdown/JSON)"]
-        EXECPLAN["Execution plan<br/>(waves + tasks)"]
-    end
-
-    SPECS --> GRAPH
-    CHANGES --> GRAPH
-    FRONTMATTER --> GRAPH
-    GRAPH --> SGJ
-    CHANGES --> CHECKER
-    CHECKER --> ISJ
-    CHANGES --> REVIEWER
-    REVIEWER --> ISJ
-    REVIEWER --> IJ
-    REVIEWER --> IT
-    GRAPH --> ASSEMBLER
-    CHANGES --> ASSEMBLER
-    ASSEMBLER --> CTXBUNDLE
-    GRAPH --> PLANNER
-    PLANNER --> EXECPLAN
-    PLANNER --> IJ
-    CHECKER --> GENREQ
-end
+    A --> C --> D
+    B --> D
 ```
 
 ## CLI Surface

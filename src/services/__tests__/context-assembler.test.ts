@@ -2,9 +2,18 @@ import { describe, it, expect } from "vitest";
 import { ContextAssembler } from "../context-assembler";
 import { MemoryFileSystem } from "./helpers";
 import type { SpecGraph } from "../../types/index";
+import { createGraphId } from "../../types/index";
 
 function makeGraph(overrides: Partial<SpecGraph> = {}): SpecGraph {
   return { version: "1.0", generatedAt: "", nodes: [], edges: [], ...overrides };
+}
+
+function graphNode(
+  type: "capability" | "change",
+  slug: string,
+  path: string,
+) {
+  return { id: createGraphId(type, slug), slug, type, path };
 }
 
 describe("ContextAssembler", () => {
@@ -17,7 +26,7 @@ describe("ContextAssembler", () => {
     });
 
     const assembler = new ContextAssembler(fs, makeGraph({
-      nodes: [{ id: "add-auth", type: "change", path: changePath }],
+      nodes: [graphNode("change", "add-auth", changePath)],
     }));
     const bundle = await assembler.assemble(changePath, "add-auth", {
       id: "1.1", description: "Create user model", completed: false,
@@ -40,10 +49,14 @@ describe("ContextAssembler", () => {
 
     const assembler = new ContextAssembler(fs, makeGraph({
       nodes: [
-        { id: "add-payments", type: "change", path: changePath },
-        { id: "user-auth", type: "capability", path: "/project/openspec/specs/user-auth" },
+        graphNode("change", "add-payments", changePath),
+        graphNode("capability", "user-auth", "/project/openspec/specs/user-auth"),
       ],
-      edges: [{ from: "add-payments", to: "user-auth", kind: "depends_on" }],
+      edges: [{
+        from: createGraphId("change", "add-payments"),
+        to: createGraphId("capability", "user-auth"),
+        kind: "depends_on",
+      }],
     }));
     const bundle = await assembler.assemble(changePath, "add-payments", {
       id: "1.1", description: "Setup payment gateway", completed: false,
@@ -77,10 +90,14 @@ describe("ContextAssembler", () => {
 
     const assembler = new ContextAssembler(fs, makeGraph({
       nodes: [
-        { id: "big", type: "change", path: changePath },
-        { id: "upstream", type: "capability", path: "/project/openspec/specs/upstream" },
+        graphNode("change", "big", changePath),
+        graphNode("capability", "upstream", "/project/openspec/specs/upstream"),
       ],
-      edges: [{ from: "big", to: "upstream", kind: "depends_on" }],
+      edges: [{
+        from: createGraphId("change", "big"),
+        to: createGraphId("capability", "upstream"),
+        kind: "depends_on",
+      }],
     }));
     const bundle = await assembler.assemble(changePath, "big", {
       id: "1.1", description: "Task", completed: false,
@@ -108,5 +125,35 @@ describe("ContextAssembler", () => {
     expect(markdown).toContain("**Change:** test");
     expect(markdown).toContain("# Proposal");
     expect(markdown).toContain("# Design");
+  });
+
+  it("includes capabilities directly impacted by a change using relative paths", async () => {
+    const root = "/project";
+    const changePath = `${root}/openspec/changes/add-auth`;
+    const fs = new MemoryFileSystem({
+      [`${changePath}/proposal.md`]: "# Proposal",
+      [`${root}/openspec/specs/auth/spec.md`]: "# Auth capability",
+    });
+    const changeId = createGraphId("change", "add-auth");
+    const capabilityId = createGraphId("capability", "auth");
+    const assembler = new ContextAssembler(fs, makeGraph({
+      nodes: [
+        graphNode("change", "add-auth", "openspec/changes/add-auth"),
+        graphNode("capability", "auth", "openspec/specs/auth"),
+      ],
+      edges: [{ from: changeId, to: capabilityId, kind: "impacts" }],
+    }), undefined, root);
+
+    const bundle = await assembler.assemble("openspec/changes/add-auth", "add-auth", {
+      id: "1.1",
+      description: "Implement auth",
+      completed: false,
+    });
+    expect(bundle.relatedSpecs).toEqual([{
+      id: "auth",
+      path: "openspec/specs/auth",
+      content: "# Auth capability",
+    }]);
+    expect(bundle.proposal).toBe("# Proposal");
   });
 });

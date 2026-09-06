@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
   FileSystem,
   ExecutionPlan,
@@ -9,7 +9,14 @@ import type {
   IloState,
   SpecGraph,
   GraphNode,
+  GraphId,
 } from "../types/index";
+import {
+  changeSubgraph,
+  collectChangeDependencies,
+  detectCycles,
+  groupWaves,
+} from "../graph/index";
 
 /**
  * Produces an ordered execution plan by combining spec-graph topological order
@@ -22,12 +29,23 @@ export class ExecutionPlanner {
   constructor(
     private readonly fs: FileSystem,
     private readonly graph: SpecGraph,
+    private readonly projectRoot = process.cwd(),
   ) {}
 
-  public plan(state: IloState): ExecutionPlan {
-    const changeNodes = this.graph.nodes.filter((n) => n.type === "change");
-    const { waves: sortedWaves, blocked } = this.topologicalWaves(changeNodes);
-    const blockedChanges = this.resolveBlocked(blocked);
+  public plan(state: IloState, target?: string): ExecutionPlan {
+    const relevant = target
+      ? collectChangeDependencies(this.graph, target)
+      : new Set(state.changes.map((change) => change.name));
+    const stateByName = new Map(state.changes.map((change) => [change.name, change]));
+    const changeNodes = this.graph.nodes.filter(
+      (node) => {
+        if (node.type !== "change" || !relevant.has(node.slug)) return false;
+        const status = stateByName.get(node.slug)?.status;
+        return status !== undefined && status !== "complete";
+      },
+    );
+    const { waves: sortedWaves, blocked } = this.topologicalWaves(changeNodes, state);
+    const blockedChanges = this.resolveBlocked(blocked, state);
 
     const waves: ExecutionWave[] = sortedWaves.map((waveNodes, index) => ({
       waveIndex: index,
@@ -38,7 +56,7 @@ export class ExecutionPlanner {
   }
 
   public parseTasks(changePath: string): TaskItem[] {
-    const tasksPath = join(changePath, "tasks.md");
+    const tasksPath = join(resolve(this.projectRoot, changePath), "tasks.md");
     try {
       const content = this.fs.readFile(tasksPath);
       return TaskParser.parse(content);
@@ -47,63 +65,66 @@ export class ExecutionPlanner {
     }
   }
 
-  // -- Topological sort with wave grouping (Kahn's algorithm) --
+  // -- Topological sort with Graphology wave grouping --
 
   private topologicalWaves(
     nodes: GraphNode[],
+    state: IloState,
   ): { waves: GraphNode[][]; blocked: GraphNode[] } {
-    const orderingEdges = this.graph.edges.filter(
-      (e) => e.kind === "depends_on" || e.kind === "blocks",
+    const subgraph = changeSubgraph({ ...this.graph, nodes });
+    const stateBlockedIds = nodes
+      .filter((node) => {
+        const status = state.changes.find((change) => change.name === node.slug)?.status;
+        return status !== "ready" && status !== "in-progress";
+      })
+      .map((node) => node.id);
+    const blockedIds = this.expandBlockedIds(
+      subgraph,
+      new Set([...detectCycles(subgraph), ...stateBlockedIds]),
     );
+    const runnableIds = new Set(
+      nodes.filter((node) => !blockedIds.has(node.id)).map((node) => node.id),
+    );
+    const runnable = {
+      ...subgraph,
+      nodes: subgraph.nodes.filter((node) => runnableIds.has(node.id)),
+      edges: subgraph.edges.filter(
+        (edge) => runnableIds.has(edge.from) && runnableIds.has(edge.to),
+      ),
+    };
+    return {
+      waves: groupWaves(runnable),
+      blocked: nodes.filter((node) => blockedIds.has(node.id)),
+    };
+  }
 
-    const inDegree = new Map<string, number>();
-    const dependents = new Map<string, string[]>();
-    const nodeMap = new Map<string, GraphNode>();
-
-    for (const node of nodes) {
-      inDegree.set(node.id, 0);
-      dependents.set(node.id, []);
-      nodeMap.set(node.id, node);
-    }
-
-    for (const edge of orderingEdges) {
-      if (!nodeMap.has(edge.from) || !nodeMap.has(edge.to)) continue;
-      inDegree.set(edge.from, (inDegree.get(edge.from) ?? 0) + 1);
-      const deps = dependents.get(edge.to);
-      if (deps) deps.push(edge.from);
-    }
-
-    const waves: GraphNode[][] = [];
-    let currentWave = nodes.filter((n) => (inDegree.get(n.id) ?? 0) === 0);
-    const processed = new Set<string>();
-
-    while (currentWave.length > 0) {
-      waves.push(currentWave);
-      const nextWave: GraphNode[] = [];
-
-      for (const node of currentWave) {
-        processed.add(node.id);
-        const deps = dependents.get(node.id) ?? [];
-        for (const depId of deps) {
-          const newDegree = (inDegree.get(depId) ?? 1) - 1;
-          inDegree.set(depId, newDegree);
-          if (newDegree === 0) {
-            const depNode = nodeMap.get(depId);
-            if (depNode) nextWave.push(depNode);
-          }
+  private expandBlockedIds(graph: SpecGraph, blocked: Set<GraphId>): Set<GraphId> {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const edge of graph.edges) {
+        const dependent = edge.kind === "depends_on"
+          ? edge.from
+          : edge.kind === "blocks"
+            ? edge.to
+            : undefined;
+        const prerequisite = edge.kind === "depends_on"
+          ? edge.to
+          : edge.kind === "blocks"
+            ? edge.from
+            : undefined;
+        if (dependent && prerequisite && blocked.has(prerequisite) && !blocked.has(dependent)) {
+          blocked.add(dependent);
+          changed = true;
         }
       }
-
-      currentWave = nextWave;
     }
-
-    const blocked = nodes.filter((n) => !processed.has(n.id));
-    return { waves, blocked };
+    return blocked;
   }
 
   private buildWaveChange(node: GraphNode, state: IloState): WaveChange {
     const tasks = this.parseTasks(node.path);
-    const changeState = state.changes.find((c) => c.name === node.id);
+    const changeState = state.changes.find((c) => c.name === node.slug);
 
     const completedSet = new Set(changeState?.completedTasks ?? []);
     const markedTasks = tasks.map((t) => ({
@@ -111,19 +132,29 @@ export class ExecutionPlanner {
       completed: t.completed || completedSet.has(t.id),
     }));
 
-    return { name: node.id, tasks: markedTasks };
+    return { name: node.slug, tasks: markedTasks };
   }
 
-  private resolveBlocked(blockedNodes: GraphNode[]): BlockedChange[] {
+  private resolveBlocked(
+    blockedNodes: GraphNode[],
+    state: IloState,
+  ): BlockedChange[] {
     return blockedNodes.map((node) => {
+      const persisted = state.changes.find((change) => change.name === node.slug);
       const blockingEdges = this.graph.edges.filter(
-        (e) =>
-          e.from === node.id &&
-          (e.kind === "depends_on" || e.kind === "blocks"),
+        (edge) =>
+          (edge.kind === "depends_on" && edge.from === node.id) ||
+          (edge.kind === "blocks" && edge.to === node.id),
       );
       return {
-        name: node.id,
-        blockedBy: blockingEdges.map((e) => e.to),
+        name: node.slug,
+        blockedBy: persisted?.blockedBy.length
+          ? persisted.blockedBy
+          : blockingEdges.map(
+          (edge) => {
+            const id = edge.kind === "depends_on" ? edge.to : edge.from;
+            return this.graph.nodes.find((node) => node.id === id)?.slug ?? id;
+          }),
       };
     });
   }

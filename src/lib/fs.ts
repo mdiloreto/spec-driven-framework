@@ -4,6 +4,7 @@ import {
   existsSync,
   readdirSync,
   mkdirSync,
+  statSync,
 } from "node:fs";
 import { dirname } from "node:path";
 import type { FileSystem } from "../types/index";
@@ -28,5 +29,9 @@ export class NodeFileSystem implements FileSystem {
 
   public listDir(path: string): string[] {
     return readdirSync(path);
+  }
+
+  public modifiedTime(path: string): number {
+    return statSync(path).mtimeMs;
   }
 }
