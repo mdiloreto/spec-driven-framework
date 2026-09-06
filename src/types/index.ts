@@ -12,6 +12,6 @@ export type ArtifactKind = "proposal" | "design" | "specs" | "tasks";
 
 // -- Re-exports --
 
-export * from "./graph.js";
-export * from "./ilo.js";
-export * from "./openspec.js";
+export * from "./graph";
+export * from "./ilo";
+export * from "./openspec";

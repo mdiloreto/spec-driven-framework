@@ -1,4 +1,4 @@
-import type { GraphEdge, GraphNode, ScanResult, SpecGraph } from "../types/index.js";
+import type { GraphEdge, GraphNode, ScanResult, SpecGraph } from "../types/index";
 
 export class GraphBuildError extends Error {
   public override readonly name = "GraphBuildError";

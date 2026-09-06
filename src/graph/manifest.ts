@@ -5,8 +5,8 @@ import type {
   GraphEdge,
   GraphNode,
   SpecGraph,
-} from "../types/index.js";
-import { EDGE_KINDS, isGraphId } from "../types/index.js";
+} from "../types/index";
+import { EDGE_KINDS, isGraphId } from "../types/index";
 
 const MANIFEST_FILE = "spec-graph.json";
 

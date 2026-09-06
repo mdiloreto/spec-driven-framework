@@ -1,5 +1,5 @@
 import { DirectedGraph, MultiDirectedGraph } from "graphology";
-import type { GraphEdge, GraphNode, SpecGraph } from "../types/index.js";
+import type { GraphEdge, GraphNode, SpecGraph } from "../types/index";
 
 export type OrderingGraph = DirectedGraph<GraphNode, Record<string, never>>;
 export type DomainGraph = MultiDirectedGraph<GraphNode, GraphEdge>;

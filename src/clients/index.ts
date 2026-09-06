@@ -1,1 +1,1 @@
-export { OpenSpecCLIClient, OpenSpecClientError } from "./openspec.js";
+export { OpenSpecCLIClient, OpenSpecClientError } from "./openspec";

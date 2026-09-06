@@ -6,9 +6,9 @@ import {
   GraphCycleError,
   groupWaves,
   topologicalSort,
-} from "../analysis.js";
-import { createGraphId } from "../../types/index.js";
-import type { GraphEdge, GraphNode, SpecGraph } from "../../types/index.js";
+} from "../analysis";
+import { createGraphId } from "../../types/index";
+import type { GraphEdge, GraphNode, SpecGraph } from "../../types/index";
 
 function node(slug: string): GraphNode {
   return {

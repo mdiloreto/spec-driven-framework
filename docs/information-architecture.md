@@ -79,7 +79,9 @@ These define concrete behavior that the framework must implement:
 | Artifact Checker | change artifacts, OpenSpec status | completeness and coherence report | OpenSpec, files | ILO layer |
 | Context Assembler | task, artifacts, graph | context bundle | graph, change artifacts | ILO layer |
 | Execution Planner | graph, tasks, loop state | execution waves and blocked changes | graph, tasks, state | ILO layer |
-| State Manager | scan, check, execution progress | `ilo-state.json` | filesystem | ILO layer |
+| State Manager | scan, check, execution progress | `.sdf/ilo-state.json` | filesystem | ILO layer |
+| Journal Manager | phase transitions, task lifecycle, backend summaries | `.sdf/ilo-journal.ndjson` | filesystem | ILO layer |
+| Trace Manager | opt-in raw backend traces | `.sdf/traces/` | filesystem | ILO layer |
 | ILO | changes, graph, checker, planner, backend | generation requests, plans, execution prompts | OpenSpec, Spec Graph, backend | framework |
 | Backend agent | execution prompt | drafted artifact or code change | Claude Code, OpenCode, or similar | agent runtime |
 
@@ -132,7 +134,8 @@ flowchart TD
 
     I --> K[Execution Planner]
     E --> K
-    L[ilo-state.json] --> K
+    L[.sdf/ilo-state.json] --> K
+    S[.sdf/ilo-journal.ndjson] --> N
 
     B --> M[Context Assembler]
     C --> M

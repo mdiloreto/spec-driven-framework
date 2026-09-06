@@ -26,11 +26,14 @@ The ILO is an **agent-first** tool — designed to be invoked by AI coding agent
 
 ## Decisions
 
-### Decision 1: Loop state model — `ilo-state.json`
+### Decision 1: Hidden runtime model — `.sdf/ilo-state.json` + `.sdf/ilo-journal.ndjson`
 
 ```typescript
 interface IloState {
-  version: "1.0";
+  version: "1.1";
+  activeRunId?: string;
+  currentPhase?: "scan" | "check" | "review" | "generate" | "plan" | "execute";
+  lastTransitionAt?: string;
   updatedAt: string;
   changes: ChangeState[];
 }
@@ -47,6 +50,10 @@ interface ChangeState {
   currentTask?: string;                  // task ID currently being worked on
   completedTasks: string[];
   blockedBy: string[];                   // change names this depends on
+  backendSessionId?: string;             // backend-owned continuation handle
+  lastError?: string;                    // last task/backend failure
+  lastTransitionAt?: string;
+  planFingerprint?: string;              // detects task-plan drift across runs
 }
 
 interface ArtifactState {
@@ -59,6 +66,10 @@ interface ArtifactState {
 
 **Why a separate state file:** OpenSpec tracks artifact existence but not cross-change orchestration state. We need to know which changes are blocked, which tasks have been completed across sessions, and what validation issues exist.
 
+**Why a journal too:** checkpoint state is the source of truth for resumption, but it overwrites history. `.sdf/ilo-journal.ndjson` provides append-only execution history for debugging, audits, interrupted runs, and concise backend activity summaries without making raw LLM traces a hard dependency.
+
+**Why traces stay optional:** raw backend transcripts and tool traces are useful for debugging, but too noisy and backend-specific to become part of authoritative orchestration state. They belong in opt-in `.sdf/traces/` artifacts only.
+
 ### Decision 2: The implementation loop algorithm
 
 ```
@@ -67,7 +78,7 @@ function runLoop(options: { target?: string; dryRun?: boolean }):
   1. SCAN
      - Rebuild spec-graph (call graph.build())
      - Read all OpenSpec changes via `openspec list --json`
-     - Merge into ilo-state.json
+     - Merge into .sdf/ilo-state.json
 
   2. CHECK (for each change, in topological order)
      - For each artifact (proposal, design, specs, tasks):
@@ -77,7 +88,8 @@ function runLoop(options: { target?: string; dryRun?: boolean }):
           - design: decisions reference proposal intent, covers all capabilities
           - specs: scenarios are testable, cover all proposal capabilities
           - tasks: cover all design decisions and spec requirements
-     - Update ilo-state.json with findings
+     - Update .sdf/ilo-state.json with findings
+     - Append phase events to .sdf/ilo-journal.ndjson
 
   3. GENERATE (for changes with missing/invalid artifacts)
      - Output a structured generation request:
@@ -96,7 +108,8 @@ function runLoop(options: { target?: string; dryRun?: boolean }):
        a. Assemble context bundle (see Decision 3)
        b. Output context + task description to agent
        c. Wait for task completion signal
-       d. Mark task complete in ilo-state.json
+        d. Mark task complete in .sdf/ilo-state.json
+        e. Append task lifecycle + backend summary events to .sdf/ilo-journal.ndjson
      - After all tasks: run /opsx:verify equivalent
 ```
 
@@ -138,7 +151,7 @@ src/
 │   ├── checker.ts        # Validates artifact existence and coherence
 │   ├── planner.ts        # Produces execution plan from spec-graph order
 │   ├── context.ts        # Assembles ContextBundle for a task
-│   ├── state.ts          # Read/write ilo-state.json
+│   ├── state.ts          # Read/write .sdf/ilo-state.json
 │   ├── loop.ts           # Main loop orchestrator (scan → check → generate → plan → execute)
 │   └── index.ts          # Public API re-exports
 ├── cli/
@@ -181,7 +194,7 @@ AI-powered semantic coherence (e.g., "does the design actually address the propo
 ## Risks / Trade-offs
 
 - **[OpenSpec CLI as subprocess]** → Slower than direct library calls, subprocess failures need handling. Mitigation: cache results within a single loop run; OpenSpec CLI is fast (<100ms per call).
-- **[State file conflicts]** → Multiple agents running ILO concurrently could corrupt `ilo-state.json`. Mitigation: v1 is single-agent only; add file locking in v2.
+- **[State file conflicts]** → Multiple agents running ILO concurrently could corrupt `.sdf/ilo-state.json` or `.sdf/ilo-journal.ndjson`. Mitigation: v1 is single-agent only; add file locking in v2.
 - **[Context bundle size]** → Large specs could produce context bundles that exceed agent context windows. Mitigation: include a `maxTokens` option that truncates less-relevant upstream context. The spec-graph's impact analysis already prioritizes direct dependencies over transitive ones.
 - **[Coherence checking scope creep]** → Temptation to make the checker "smart" — resist. Keep it structural in v1.
 
@@ -264,7 +277,7 @@ Evaluated: Google ADK, Claude Agent SDK, LangGraph, CrewAI, Mastra. All rejected
 ## Risks / Trade-offs (updated)
 
 - **[OpenSpec CLI as subprocess]** → Slower than direct library calls. Mitigation: cache results within a single loop run; OpenSpec CLI is fast (<100ms per call).
-- **[State file conflicts]** → Multiple agents running ILO concurrently could corrupt `ilo-state.json`. Mitigation: v1 is single-agent only; add file locking in v2.
+- **[State file conflicts]** → Multiple agents running ILO concurrently could corrupt `.sdf/ilo-state.json` or `.sdf/ilo-journal.ndjson`. Mitigation: v1 is single-agent only; add file locking in v2.
 - **[Context bundle size]** → Large specs could exceed agent context windows. Mitigation: `maxTokens` option with truncation of less-relevant upstream context. Spec-graph impact analysis prioritizes direct dependencies over transitive ones.
 - **[Coherence checking scope creep]** → Keep it structural in v1. Defer semantic analysis.
 - **[Backend subprocess reliability]** → Agent CLIs may change flags/output format between versions. Mitigation: version-pin invocation patterns, wrap with retry logic, fail loudly on unexpected output.

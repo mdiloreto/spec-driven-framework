@@ -1,16 +1,16 @@
 import { resolve, join } from "node:path";
-import type { ParsedArgs } from "../args.js";
-import { getFlag, hasFlag } from "../args.js";
-import { OpenSpecCLIClient } from "../../clients/index.js";
-import { NodeFileSystem } from "../../lib/index.js";
+import type { ParsedArgs } from "../args";
+import { getFlag, hasFlag } from "../args";
+import { OpenSpecCLIClient } from "../../clients/index";
+import { NodeFileSystem } from "../../lib/index";
 import {
   ImplementationLoop,
   StateManager,
   ArtifactChecker,
-} from "../../services/index.js";
-import type { LoopEvent } from "../../services/implementation-loop.js";
-import type { OpenSpecChangeListItem, SpecGraph } from "../../types/index.js";
-import { buildProjectGraph, writeManifest } from "../../graph/index.js";
+} from "../../services/index";
+import type { LoopEvent } from "../../services/implementation-loop";
+import type { OpenSpecChangeListItem, SpecGraph } from "../../types/index";
+import { buildProjectGraph, writeManifest } from "../../graph/index";
 
 /**
  * Handles all `sdf ilo <subcommand>` CLI routing.
@@ -52,6 +52,7 @@ export class IloCommand {
   private async run(args: ParsedArgs): Promise<void> {
     const target = getFlag(args, "change");
     const dryRun = hasFlag(args, "dry-run");
+    const debugTrace = hasFlag(args, "debug-trace");
     const json = hasFlag(args, "json");
 
     const loop = new ImplementationLoop(
@@ -59,7 +60,7 @@ export class IloCommand {
       this.projectRoot,
       this.openspec,
       () => this.buildGraph(),
-      { target, dryRun },
+      { target, dryRun, debugTrace },
       json ? undefined : (event: LoopEvent) => this.logEvent(event),
     );
 
@@ -100,7 +101,10 @@ export class IloCommand {
       return;
     }
 
-    console.log(`ILO State (updated: ${state.updatedAt})\n`);
+    const runtime = state.currentPhase
+      ? `, phase: ${state.currentPhase}`
+      : "";
+    console.log(`ILO State (updated: ${state.updatedAt}${runtime})\n`);
     for (const change of state.changes) {
       const artifacts = Object.entries(change.artifacts)
         .map(([kind, s]) => {
@@ -258,6 +262,7 @@ Commands:
 Options:
   --change <name>   Target a specific change
   --dry-run         Skip mutations
+  --debug-trace     Capture raw backend traces under .sdf/traces/
   --json            Machine-parseable output
 `.trim());
   }

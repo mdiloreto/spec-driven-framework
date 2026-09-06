@@ -19,7 +19,10 @@
 - [ ] 3.1 Implement `readState()` and `writeState()` in `src/ilo/state.ts`
 - [ ] 3.2 Implement state initialization for first run (empty state creation)
 - [ ] 3.3 Implement state merging: reconcile existing state with fresh scan results
-- [ ] 3.4 Write unit tests for state read/write, merge, and initialization
+- [ ] 3.4 Add append-only `.sdf/ilo-journal.ndjson` execution logging with SDF events and backend summaries
+- [ ] 3.5 Add optional `.sdf/traces/` debug trace capture and summarizer hook support
+- [ ] 3.6 Add plan-drift reconciliation using stored fingerprints before execution continues
+- [ ] 3.7 Write unit tests for state read/write, merge, migration, journaling, traces, and plan rebasing
 
 ## 4. Artifact Checker
 
@@ -47,8 +50,9 @@
 - [ ] 6.3 Implement generate phase: produce generation requests for missing/invalid artifacts
 - [ ] 6.4 Implement plan phase: produce execution plan from spec-graph order + tasks.md parsing
 - [ ] 6.5 Implement execute phase: walk tasks, assemble context, output for agent, mark complete
-- [ ] 6.6 Implement dry-run mode: skip generate and execute, don't modify state
-- [ ] 6.7 Write unit tests for each phase and the full loop flow
+- [ ] 6.6 Persist checkpoint state on phase transitions and task boundaries under `.sdf/`
+- [ ] 6.7 Implement dry-run mode: skip generate and execute, don't modify runtime artifacts
+- [ ] 6.8 Write unit tests for each phase and the full loop flow
 
 ## 7. CLI Commands
 
@@ -72,5 +76,5 @@
 - [ ] 9.1 Create test fixture: OpenSpec project with mixed artifact states (complete, partial, missing)
 - [ ] 9.2 End-to-end test: full loop run on fixture — scan through execute
 - [ ] 9.3 Test resume after interruption: modify state mid-loop, restart, verify continuation
-- [ ] 9.4 Test dry-run mode: verify no state modification
+- [ ] 9.4 Test dry-run mode: verify no `.sdf/` state or journal modification
 - [ ] 9.5 Test context assembly with real spec-graph: verify upstream/downstream inclusion

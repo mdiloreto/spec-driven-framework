@@ -80,7 +80,11 @@ flowchart TD
         OC["OpenCode"]
     end
 
-    STATE[("ilo-state.json")]
+    subgraph Persistence["Persistence"]
+        STATE[(".sdf/ilo-state.json")]
+        JOURNAL[(".sdf/ilo-journal.ndjson")]
+        TRACES[".sdf/traces/"]
+    end
 
     %% File system feeds graph
     SPECS --> SCANNER
@@ -105,6 +109,11 @@ flowchart TD
     S <--> STATE
     C --> STATE
     E --> STATE
+    S --> JOURNAL
+    C --> JOURNAL
+    P --> JOURNAL
+    E --> JOURNAL
+    E -. debug only .-> TRACES
 
     style R stroke-dasharray: 5 5
 ```
@@ -138,7 +147,7 @@ flowchart TD
 
 | Phase | What it does | Delegates to |
 |---|---|---|
-| **1. Scan** | Rebuilds spec-graph, reads OpenSpec change list, merges into `ilo-state.json` | Spec-Graph (`build()`), OpenSpec (`list --json`) |
+| **1. Scan** | Rebuilds spec-graph, reads OpenSpec change list, merges into `.sdf/ilo-state.json` | Spec-Graph (`build()`), OpenSpec (`list --json`) |
 | **2. Check** | Validates artifact structural completeness (headings, sections, checkboxes) | `ArtifactChecker`, OpenSpec (`status --json`) |
 | **3. Review** *(optional)* | Semantic coherence validation — alignment, contradictions, completeness | `CoherenceReviewer` → `ILOBackend` (LLM) |
 | **4. Generate** | Emits structured generation requests for missing/invalid artifacts | OpenSpec (`instructions --json`) for prompts |
@@ -197,8 +206,11 @@ Token budget truncation removes least-relevant context when the bundle exceeds `
 
 - Parses `tasks.md` checkbox format into structured task items
 - Uses spec-graph topological sort to determine change execution order
+- Skips already-completed tasks (from `.sdf/ilo-state.json`)
+- Writes append-only execution history to `.sdf/ilo-journal.ndjson`
+- Logs SDF workflow transitions plus concise backend summaries by default, not raw LLM traces
+- Optionally captures raw backend traces under `.sdf/traces/` when `--debug-trace` is enabled
 - Groups independent changes into parallel waves using Graphology topological generations
-- Skips already-completed tasks (from `ilo-state.json`)
 
 ## Wave Execution Model
 

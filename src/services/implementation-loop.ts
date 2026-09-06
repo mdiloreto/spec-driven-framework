@@ -1,5 +1,7 @@
+import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type {
+  BackendSummaryInput,
   FileSystem,
   LoopOptions,
   IloState,
@@ -11,18 +13,22 @@ import type {
   ArtifactKind,
   OpenSpecClient,
   SpecGraph,
-} from "../types/index.js";
-import { StateManager } from "./state-manager.js";
-import { ArtifactChecker } from "./checker.js";
-import { ContextAssembler } from "./context-assembler.js";
-import { ExecutionPlanner } from "./execution-planner.js";
-import { collectChangeDependencies } from "../graph/index.js";
+  LoopPhase,
+  JournalEntry,
+} from "../types/index";
+import { StateManager } from "./state-manager";
+import { ArtifactChecker } from "./checker";
+import { ContextAssembler } from "./context-assembler";
+import { ExecutionPlanner } from "./execution-planner";
+import { JournalManager } from "./journal-manager";
+import { TraceManager } from "./trace-manager";
+import { collectChangeDependencies } from "../graph/index";
 
 /**
  * Events emitted during loop execution for observability.
  */
 export interface LoopEvent {
-  phase: "scan" | "check" | "generate" | "plan" | "execute";
+  phase: LoopPhase;
   changeName?: string;
   message: string;
   data?: unknown;
@@ -51,7 +57,10 @@ export interface LoopResult {
 export class ImplementationLoop {
   private readonly stateManager: StateManager;
   private readonly checker: ArtifactChecker;
+  private readonly journalManager?: JournalManager;
+  private readonly traceManager?: TraceManager;
   private readonly onEvent: LoopEventHandler;
+  private runId?: string;
 
   constructor(
     private readonly fs: FileSystem,
@@ -63,6 +72,12 @@ export class ImplementationLoop {
   ) {
     this.stateManager = new StateManager(fs, projectRoot);
     this.checker = new ArtifactChecker(fs, openspec);
+    this.journalManager = options.dryRun
+      ? undefined
+      : new JournalManager(fs, projectRoot);
+    this.traceManager = options.dryRun || !options.debugTrace
+      ? undefined
+      : new TraceManager(fs, projectRoot);
     this.onEvent = onEvent ?? (() => {});
   }
 
@@ -71,12 +86,29 @@ export class ImplementationLoop {
   }
 
   public async run(): Promise<LoopResult> {
-    const graph = await this.scan();
-    const checkResults = await this.check(graph);
-    const generationRequests = await this.generate(checkResults);
+    this.runId = this.options.dryRun ? undefined : randomUUID();
+
+    const graph = await this.withPhase("scan", () => this.scan());
+    const checkResults = await this.withPhase("check", () => this.check(graph));
+    const generationRequests = await this.withPhase(
+      "generate",
+      () => this.generate(checkResults),
+    );
 
     const planner = new ExecutionPlanner(this.fs, graph, this.projectRoot);
-    const executionPlan = planner.plan(this.stateManager.current, this.options.target);
+    const executionPlan = await this.withPhase("plan", async () => {
+      const plan = planner.plan(this.stateManager.current, this.options.target);
+      this.reconcilePlanFingerprints(plan);
+      this.appendJournal({
+        event: "execution_plan_built",
+        phase: "plan",
+        data: {
+          waves: plan.waves.length,
+          blockedChanges: plan.blockedChanges.length,
+        },
+      });
+      return plan;
+    });
     this.emit("plan", undefined, "Execution plan built", executionPlan);
 
     const executed: string[] = [];
@@ -87,11 +119,21 @@ export class ImplementationLoop {
         this.openspec,
         this.projectRoot,
       );
-      const completedIds = await this.execute(executionPlan, assembler);
+      const completedIds = await this.withPhase("execute", () =>
+        this.execute(executionPlan, assembler)
+      );
       executed.push(...completedIds);
     }
 
     if (!this.options.dryRun) {
+      this.appendJournal({
+        event: "run_completed",
+        data: {
+          executedTasks: executed.length,
+          generationRequests: generationRequests.length,
+        },
+      });
+      this.stateManager.updateLoop({ activeRunId: undefined, currentPhase: undefined });
       this.stateManager.save();
     }
 
@@ -208,6 +250,12 @@ export class ImplementationLoop {
         });
 
         this.stateManager.updateChange(result.changeName, { status: "generating" });
+        this.appendJournal({
+          event: "generation_requested",
+          phase: "generate",
+          changeName: result.changeName,
+          data: { artifact: artifact.artifact, issues: artifact.issues },
+        });
         this.emit(
           "generate",
           result.changeName,
@@ -254,6 +302,17 @@ export class ImplementationLoop {
 
         for (const task of pendingTasks) {
           this.emit("execute", waveChange.name, `Executing task ${task.id}: ${task.description}`);
+          this.stateManager.updateChange(waveChange.name, {
+            currentTask: task.id,
+            lastError: undefined,
+          });
+          this.stateManager.save();
+          this.appendJournal({
+            event: "task_started",
+            phase: "execute",
+            changeName: waveChange.name,
+            taskId: task.id,
+          });
 
           const changePath = this.resolveChangePath(waveChange.name);
           const bundle = await assembler.assemble(
@@ -264,24 +323,118 @@ export class ImplementationLoop {
           );
 
           const prompt = this.buildExecutionPrompt(bundle, assembler);
+          this.appendJournal({
+            event: "backend_invoked",
+            phase: "execute",
+            changeName: waveChange.name,
+            taskId: task.id,
+            backend: backend.name,
+          });
           const result = await backend.execute(prompt, {
             cwd: this.projectRoot,
           });
+
+          const tracePath = this.captureDebugTrace({
+            backend: backend.name,
+            changeName: waveChange.name,
+            taskId: task.id,
+            prompt,
+            output: result.output,
+            trace: result.trace,
+            sessionId: result.sessionId,
+            success: result.success,
+            error: result.error,
+          });
+          if (tracePath) {
+            this.appendJournal({
+              event: "backend_trace_captured",
+              phase: "execute",
+              changeName: waveChange.name,
+              taskId: task.id,
+              backend: backend.name,
+              sessionId: result.sessionId,
+              data: { path: tracePath },
+            });
+          }
+
+          this.appendJournal({
+            event: "backend_completed",
+            phase: "execute",
+            changeName: waveChange.name,
+            taskId: task.id,
+            backend: backend.name,
+            sessionId: result.sessionId,
+            data: { success: result.success },
+          });
+
+          const summary = await this.summarizeBackendResult({
+            backend: backend.name,
+            changeName: waveChange.name,
+            taskId: task.id,
+            sessionId: result.sessionId,
+            prompt,
+            output: result.output,
+            trace: result.trace,
+            success: result.success,
+            error: result.error,
+          });
+          if (summary) {
+            this.appendJournal({
+              event: "backend_summary",
+              phase: "execute",
+              changeName: waveChange.name,
+              taskId: task.id,
+              backend: backend.name,
+              sessionId: result.sessionId,
+              summary: summary.summary,
+              data: {
+                source: summary.source,
+                provider: summary.provider,
+                error: summary.error,
+              },
+            });
+          }
 
           if (result.success) {
             const changeState = this.stateManager.current.changes.find(
               (c) => c.name === waveChange.name,
             );
             if (changeState) {
+              const completedTasks = new Set(changeState.completedTasks);
+              completedTasks.add(task.id);
               this.stateManager.updateChange(waveChange.name, {
-                completedTasks: [...changeState.completedTasks, task.id],
+                completedTasks: [...completedTasks],
                 currentTask: undefined,
+                backendSessionId: result.sessionId,
+                lastError: undefined,
               });
             }
             // Persist after each task so progress survives interruptions
             this.stateManager.save();
+            this.appendJournal({
+              event: "task_completed",
+              phase: "execute",
+              changeName: waveChange.name,
+              taskId: task.id,
+              backend: backend.name,
+              sessionId: result.sessionId,
+            });
             executed.push(`${waveChange.name}/${task.id}`);
           } else {
+            this.stateManager.updateChange(waveChange.name, {
+              backendSessionId: result.sessionId,
+              lastError: result.error ?? "unknown error",
+            });
+            this.stateManager.save();
+            this.appendJournal({
+              event: "task_failed",
+              phase: "execute",
+              changeName: waveChange.name,
+              taskId: task.id,
+              backend: backend.name,
+              sessionId: result.sessionId,
+              data: { error: result.error ?? "unknown error" },
+            });
             this.emit(
               "execute",
               waveChange.name,
@@ -334,8 +487,175 @@ export class ImplementationLoop {
     return assembler.formatAsMarkdown(bundle);
   }
 
+  private async withPhase<T>(
+    phase: LoopPhase,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    this.emit(phase, undefined, `Starting ${phase}`);
+
+    if (!this.options.dryRun && this.runId) {
+      this.stateManager.updateLoop({ activeRunId: this.runId, currentPhase: phase });
+      this.stateManager.save();
+      this.appendJournal({ event: "phase_started", phase });
+    }
+
+    const result = await action();
+
+    if (!this.options.dryRun) {
+      this.stateManager.save();
+      this.appendJournal({ event: "phase_completed", phase });
+    }
+
+    return result;
+  }
+
+  private appendJournal(
+    entry: Omit<JournalEntry, "seq" | "timestamp" | "runId">,
+  ): void {
+    if (!this.runId) return;
+    this.journalManager?.append({ runId: this.runId, ...entry });
+  }
+
+  private reconcilePlanFingerprints(plan: ExecutionPlan): void {
+    for (const wave of plan.waves) {
+      for (const change of wave.changes) {
+        const existingState = this.stateManager.getChange(change.name);
+        const planFingerprint = createHash("sha1")
+          .update(
+            change.tasks
+              .map((task) => `${task.id}:${task.description}`)
+              .join("\n"),
+          )
+          .digest("hex");
+
+        if (
+          existingState?.planFingerprint &&
+          existingState.planFingerprint !== planFingerprint
+        ) {
+          const nextTaskIds = new Set(change.tasks.map((task) => task.id));
+          const preservedCompletedTasks = existingState.completedTasks.filter((taskId) =>
+            nextTaskIds.has(taskId)
+          );
+          const droppedCompletedTasks = existingState.completedTasks.filter((taskId) =>
+            !nextTaskIds.has(taskId)
+          );
+          const nextCurrentTask = existingState.currentTask && nextTaskIds.has(existingState.currentTask)
+            ? existingState.currentTask
+            : undefined;
+
+          this.stateManager.updateChange(change.name, {
+            completedTasks: preservedCompletedTasks,
+            currentTask: nextCurrentTask,
+            planFingerprint,
+          });
+
+          this.appendJournal({
+            event: "plan_rebased",
+            phase: "plan",
+            changeName: change.name,
+            data: {
+              previousFingerprint: existingState.planFingerprint,
+              nextFingerprint: planFingerprint,
+              preservedCompletedTasks,
+              droppedCompletedTasks,
+              previousCurrentTask: existingState.currentTask,
+              nextCurrentTask,
+            },
+          });
+
+          this.emit(
+            "plan",
+            change.name,
+            `Plan changed for ${change.name}; reconciled persisted progress`,
+            {
+              preservedCompletedTasks,
+              droppedCompletedTasks,
+              previousCurrentTask: existingState.currentTask,
+              nextCurrentTask,
+            },
+          );
+          continue;
+        }
+
+        this.stateManager.updateChange(change.name, { planFingerprint });
+      }
+    }
+  }
+
+  private async summarizeBackendResult(input: BackendSummaryInput): Promise<{
+    summary: string;
+    source: "hook" | "fallback";
+    provider?: string;
+    error?: string;
+  } | undefined> {
+    if (this.options.summarizer) {
+      try {
+        const result = await this.options.summarizer.summarize(input);
+        if (typeof result === "string") {
+          const summary = this.normalizeSummary(result);
+          if (summary) {
+            return { summary, source: "hook" };
+          }
+        } else if (result?.summary) {
+          const summary = this.normalizeSummary(result.summary);
+          if (summary) {
+            return {
+              summary,
+              source: "hook",
+              provider: result.provider,
+            };
+          }
+        }
+      } catch (error) {
+        const fallback = this.fallbackBackendSummary(input.output);
+        if (fallback) {
+          return {
+            summary: fallback,
+            source: "fallback",
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }
+    }
+
+    const fallback = this.fallbackBackendSummary(input.output);
+    if (!fallback) return undefined;
+    return { summary: fallback, source: "fallback" };
+  }
+
+  private captureDebugTrace(input: BackendSummaryInput): string | undefined {
+    if (!this.traceManager || !this.runId) return undefined;
+
+    return this.traceManager.write({
+      capturedAt: new Date().toISOString(),
+      runId: this.runId,
+      backend: input.backend,
+      changeName: input.changeName,
+      taskId: input.taskId,
+      sessionId: input.sessionId,
+      success: input.success,
+      error: input.error,
+      prompt: input.prompt,
+      output: input.output,
+      trace: input.trace,
+    });
+  }
+
+  private fallbackBackendSummary(output: string): string | undefined {
+    const normalized = this.normalizeSummary(output);
+    if (!normalized) return undefined;
+    return normalized.length <= 280
+      ? normalized
+      : `${normalized.slice(0, 277)}...`;
+  }
+
+  private normalizeSummary(summary: string): string | undefined {
+    const normalized = summary.replace(/\s+/g, " ").trim();
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
   private emit(
-    phase: LoopEvent["phase"],
+    phase: LoopPhase,
     changeName: string | undefined,
     message: string,
     data?: unknown,

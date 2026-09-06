@@ -9,8 +9,8 @@ import type {
   SpecGraph,
   GraphNode,
   GraphId,
-} from "../types/index.js";
-import { createGraphId } from "../types/index.js";
+} from "../types/index";
+import { createGraphId } from "../types/index";
 
 export interface ContextAssemblerOptions {
   maxTokens?: number;

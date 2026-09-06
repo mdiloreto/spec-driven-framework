@@ -1,19 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { StateManager } from "../state-manager.js";
-import { MemoryFileSystem } from "./helpers.js";
+import { StateManager } from "../state-manager";
+import { MemoryFileSystem } from "./helpers";
 
 describe("StateManager", () => {
   it("initializes empty state when no file exists", () => {
     const fs = new MemoryFileSystem();
     const manager = new StateManager(fs, "/project");
 
-    expect(manager.current.version).toBe("1.0");
+    expect(manager.current.version).toBe("1.1");
     expect(manager.current.changes).toEqual([]);
   });
 
-  it("loads existing state from file", () => {
+  it("loads existing state from the hidden runtime directory", () => {
     const existing = {
-      version: "1.0" as const,
+      version: "1.1" as const,
+      activeRunId: "run-123",
+      currentPhase: "check" as const,
+      lastTransitionAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-01T00:00:00Z",
       changes: [
         {
@@ -27,17 +30,47 @@ describe("StateManager", () => {
           },
           completedTasks: ["1.1"],
           blockedBy: [],
+          planFingerprint: "abc123",
         },
       ],
     };
 
     const fs = new MemoryFileSystem({
-      "/project/ilo-state.json": JSON.stringify(existing),
+      "/project/.sdf/ilo-state.json": JSON.stringify(existing),
     });
     const manager = new StateManager(fs, "/project");
 
     expect(manager.current.changes).toHaveLength(1);
     expect(manager.current.changes[0]!.name).toBe("add-auth");
+    expect(manager.current.changes[0]!.completedTasks).toEqual(["1.1"]);
+    expect(manager.current.activeRunId).toBe("run-123");
+  });
+
+  it("migrates legacy root state into the new schema", () => {
+    const fs = new MemoryFileSystem({
+      "/project/ilo-state.json": JSON.stringify({
+        version: "1.0",
+        updatedAt: "2026-01-01T00:00:00Z",
+        changes: [
+          {
+            name: "add-auth",
+            status: "ready",
+            artifacts: {
+              proposal: { exists: true, valid: true, lastChecked: "" },
+              design: { exists: true, valid: true, lastChecked: "" },
+              specs: { exists: true, valid: true, lastChecked: "" },
+              tasks: { exists: true, valid: true, lastChecked: "" },
+            },
+            completedTasks: ["1.1"],
+            blockedBy: [],
+          },
+        ],
+      }),
+    });
+
+    const manager = new StateManager(fs, "/project");
+
+    expect(manager.current.version).toBe("1.1");
     expect(manager.current.changes[0]!.completedTasks).toEqual(["1.1"]);
   });
 
@@ -83,11 +116,21 @@ describe("StateManager", () => {
     manager.mergeChanges([{ name: "test", path: "/changes/test" }]);
     manager.save();
 
-    const written = fs.getWritten("/project/ilo-state.json");
+    const written = fs.getWritten("/project/.sdf/ilo-state.json");
     expect(written).toBeDefined();
     const parsed = JSON.parse(written!);
-    expect(parsed.version).toBe("1.0");
+    expect(parsed.version).toBe("1.1");
     expect(parsed.changes).toHaveLength(1);
+  });
+
+  it("updates loop-level runtime state", () => {
+    const fs = new MemoryFileSystem();
+    const manager = new StateManager(fs, "/project");
+
+    manager.updateLoop({ activeRunId: "run-123", currentPhase: "scan" });
+
+    expect(manager.current.activeRunId).toBe("run-123");
+    expect(manager.current.currentPhase).toBe("scan");
   });
 
   it("updates individual change state", () => {
@@ -102,16 +145,17 @@ describe("StateManager", () => {
 
   it("falls back to empty state when file is corrupted JSON", () => {
     const fs = new MemoryFileSystem({
-      "/project/ilo-state.json": "not valid json {{{",
+      "/project/.sdf/ilo-state.json": "not valid json {{{",
     });
 
-    // JSON.parse will throw, but the constructor should handle it gracefully
-    expect(() => new StateManager(fs, "/project")).toThrow();
+    const manager = new StateManager(fs, "/project");
+    expect(manager.current.version).toBe("1.1");
+    expect(manager.current.changes).toEqual([]);
   });
 
   it("falls back to empty state when file has wrong version", () => {
     const fs = new MemoryFileSystem({
-      "/project/ilo-state.json": JSON.stringify({
+      "/project/.sdf/ilo-state.json": JSON.stringify({
         version: "2.0",
         updatedAt: "2026-01-01T00:00:00Z",
         changes: [],
@@ -119,17 +163,17 @@ describe("StateManager", () => {
     });
     const manager = new StateManager(fs, "/project");
 
-    expect(manager.current.version).toBe("1.0");
+    expect(manager.current.version).toBe("1.1");
     expect(manager.current.changes).toEqual([]);
   });
 
   it("falls back to empty state when file has missing fields", () => {
     const fs = new MemoryFileSystem({
-      "/project/ilo-state.json": JSON.stringify({ version: "1.0" }),
+      "/project/.sdf/ilo-state.json": JSON.stringify({ version: "1.1" }),
     });
     const manager = new StateManager(fs, "/project");
 
-    expect(manager.current.version).toBe("1.0");
+    expect(manager.current.version).toBe("1.1");
     expect(manager.current.changes).toEqual([]);
   });
 });

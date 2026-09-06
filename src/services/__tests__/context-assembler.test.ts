@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { ContextAssembler } from "../context-assembler.js";
-import { MemoryFileSystem } from "./helpers.js";
-import type { SpecGraph } from "../../types/index.js";
-import { createGraphId } from "../../types/index.js";
+import { ContextAssembler } from "../context-assembler";
+import { MemoryFileSystem } from "./helpers";
+import type { SpecGraph } from "../../types/index";
+import { createGraphId } from "../../types/index";
 
 function makeGraph(overrides: Partial<SpecGraph> = {}): SpecGraph {
   return { version: "1.0", generatedAt: "", nodes: [], edges: [], ...overrides };

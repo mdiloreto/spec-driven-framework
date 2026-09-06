@@ -3,9 +3,9 @@ import type {
   OpenSpecClient,
   ScanResult,
   SpecGraph,
-} from "../types/index.js";
-import { buildGraph } from "./builder.js";
-import { scanGraph } from "./scanner.js";
+} from "../types/index";
+import { buildGraph } from "./builder";
+import { scanGraph } from "./scanner";
 
 export interface ProjectGraphResult {
   graph: SpecGraph;

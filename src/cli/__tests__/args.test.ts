@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseArgs, getFlag, getFlags, hasFlag } from "../args.js";
+import { parseArgs, getFlag, getFlags, hasFlag } from "../args";
 
 describe("parseArgs", () => {
   it("parses positional arguments", () => {
@@ -14,9 +14,10 @@ describe("parseArgs", () => {
   });
 
   it("parses boolean flags", () => {
-    const result = parseArgs(["ilo", "run", "--dry-run", "--json"]);
+    const result = parseArgs(["ilo", "run", "--dry-run", "--json", "--debug-trace"]);
     expect(hasFlag(result, "dry-run")).toBe(true);
     expect(hasFlag(result, "json")).toBe(true);
+    expect(hasFlag(result, "debug-trace")).toBe(true);
     expect(hasFlag(result, "verbose")).toBe(false);
   });
 

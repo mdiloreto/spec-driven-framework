@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve } from "node:path";
-import { OpenSpecCLIClient } from "../../clients/index.js";
+import { OpenSpecCLIClient } from "../../clients/index";
 import {
   buildProjectGraph,
   changeSubgraph,
@@ -9,12 +9,12 @@ import {
   isManifestStale,
   readManifest,
   writeManifest,
-} from "../../graph/index.js";
-import { NodeFileSystem } from "../../lib/index.js";
-import type { FileSystem, GraphId, GraphNode, OpenSpecClient, SpecGraph } from "../../types/index.js";
-import { isGraphId } from "../../types/index.js";
-import type { ParsedArgs } from "../args.js";
-import { getFlags, hasFlag } from "../args.js";
+} from "../../graph/index";
+import { NodeFileSystem } from "../../lib/index";
+import type { FileSystem, GraphId, GraphNode, OpenSpecClient, SpecGraph } from "../../types/index";
+import { isGraphId } from "../../types/index";
+import type { ParsedArgs } from "../args";
+import { getFlags, hasFlag } from "../args";
 
 export class GraphCommand {
   private readonly projectRoot: string;

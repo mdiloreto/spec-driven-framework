@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildGraph, GraphBuildError } from "../builder.js";
-import { createGraphId } from "../../types/index.js";
-import type { ScanResult } from "../../types/index.js";
+import { buildGraph, GraphBuildError } from "../builder";
+import { createGraphId } from "../../types/index";
+import type { ScanResult } from "../../types/index";
 
 function scan(): ScanResult {
   return {

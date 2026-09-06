@@ -10,13 +10,13 @@ import type {
   SpecGraph,
   GraphNode,
   GraphId,
-} from "../types/index.js";
+} from "../types/index";
 import {
   changeSubgraph,
   collectChangeDependencies,
   detectCycles,
   groupWaves,
-} from "../graph/index.js";
+} from "../graph/index";
 
 /**
  * Produces an ordered execution plan by combining spec-graph topological order

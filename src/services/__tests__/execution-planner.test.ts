@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { ExecutionPlanner } from "../execution-planner.js";
-import { MemoryFileSystem } from "./helpers.js";
-import type { SpecGraph } from "../../types/index.js";
-import type { IloState } from "../../types/index.js";
-import { createGraphId } from "../../types/index.js";
+import { ExecutionPlanner } from "../execution-planner";
+import { MemoryFileSystem } from "./helpers";
+import type { SpecGraph } from "../../types/index";
+import type { IloState } from "../../types/index";
+import { createGraphId } from "../../types/index";
 
 function stateFor(...slugs: string[]): IloState {
   return {
-    version: "1.0",
+    version: "1.1",
     updatedAt: "",
     changes: slugs.map((name) => ({
       name,
@@ -157,7 +157,7 @@ describe("ExecutionPlanner", () => {
         "/changes/test/tasks.md": "## 1.\n- [ ] 1.1 First\n- [ ] 1.2 Second",
       });
       const state: IloState = {
-        version: "1.0",
+        version: "1.1",
         updatedAt: "",
         changes: [{
           name: "test",

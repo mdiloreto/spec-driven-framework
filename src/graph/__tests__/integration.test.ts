@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { GraphCommand } from "../../cli/commands/graph.js";
-import { parseArgs } from "../../cli/args.js";
-import { groupWaves } from "../analysis.js";
-import { readManifest } from "../manifest.js";
-import { buildProjectGraph } from "../project.js";
-import { MemoryFileSystem, StubOpenSpecClient } from "../../services/__tests__/helpers.js";
+import { GraphCommand } from "../../cli/commands/graph";
+import { parseArgs } from "../../cli/args";
+import { groupWaves } from "../analysis";
+import { readManifest } from "../manifest";
+import { buildProjectGraph } from "../project";
+import { MemoryFileSystem, StubOpenSpecClient } from "../../services/__tests__/helpers";
 
 function fixture() {
   const files = new MemoryFileSystem({

@@ -1,9 +1,9 @@
 import { stronglyConnectedComponents } from "graphology-components";
 import { topologicalGenerations } from "graphology-dag";
-import type { GraphId, GraphNode, ImpactResult, SpecGraph, WaveGroup } from "../types/index.js";
-import { isGraphId } from "../types/index.js";
-import { toDomainGraph, toOrderingGraph } from "./engine.js";
-import type { DomainGraph } from "./engine.js";
+import type { GraphId, GraphNode, ImpactResult, SpecGraph, WaveGroup } from "../types/index";
+import { isGraphId } from "../types/index";
+import { toDomainGraph, toOrderingGraph } from "./engine";
+import type { DomainGraph } from "./engine";
 
 export class GraphCycleError extends Error {
   public override readonly name = "GraphCycleError";

@@ -1,6 +1,6 @@
 import { expectTypeOf, it } from "vitest";
-import { createGraphId } from "../../types/index.js";
-import type { GraphEdge, GraphId, GraphNode } from "../../types/index.js";
+import { createGraphId } from "../../types/index";
+import type { GraphEdge, GraphId, GraphNode } from "../../types/index";
 
 it("keeps graph ids distinct from arbitrary strings", () => {
   const id = createGraphId("capability", "auth");

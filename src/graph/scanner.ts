@@ -9,8 +9,8 @@ import type {
   RawEdge,
   RawNode,
   ScanResult,
-} from "../types/index.js";
-import { createGraphId, EDGE_KINDS } from "../types/index.js";
+} from "../types/index";
+import { createGraphId, EDGE_KINDS } from "../types/index";
 
 export async function scanGraph(
   projectRoot: string,

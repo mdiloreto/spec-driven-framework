@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { scanGraph, parseDependencyDeclarations } from "../scanner.js";
-import { createGraphId } from "../../types/index.js";
-import { MemoryFileSystem, StubOpenSpecClient } from "../../services/__tests__/helpers.js";
+import { scanGraph, parseDependencyDeclarations } from "../scanner";
+import { createGraphId } from "../../types/index";
+import { MemoryFileSystem, StubOpenSpecClient } from "../../services/__tests__/helpers";
 
 describe("graph scanner", () => {
   it("returns an empty result for an empty OpenSpec project", async () => {

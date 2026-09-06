@@ -4,10 +4,10 @@ import {
   isManifestStale,
   readManifest,
   writeManifest,
-} from "../manifest.js";
-import { createGraphId } from "../../types/index.js";
-import type { SpecGraph } from "../../types/index.js";
-import { MemoryFileSystem } from "../../services/__tests__/helpers.js";
+} from "../manifest";
+import { createGraphId } from "../../types/index";
+import type { SpecGraph } from "../../types/index";
+import { MemoryFileSystem } from "../../services/__tests__/helpers";
 
 function graph(): SpecGraph {
   return {
