@@ -2,16 +2,18 @@
 
 import { parseArgs } from "./args.js";
 import { IloCommand } from "./commands/ilo.js";
+import { GraphCommand } from "./commands/graph.js";
 
 const args = parseArgs(process.argv.slice(2));
 const subcommand = args.positional[0];
 
 async function main(): Promise<void> {
   switch (subcommand) {
-    case "graph":
-      console.error("graph commands not yet implemented");
-      process.exit(1);
+    case "graph": {
+      const graph = new GraphCommand();
+      await graph.execute(args);
       break;
+    }
     case "ilo": {
       const ilo = new IloCommand();
       await ilo.execute(args);

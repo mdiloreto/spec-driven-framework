@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseArgs, getFlag, hasFlag } from "../args.js";
+import { parseArgs, getFlag, getFlags, hasFlag } from "../args.js";
 
 describe("parseArgs", () => {
   it("parses positional arguments", () => {
@@ -47,5 +47,11 @@ describe("parseArgs", () => {
   it("handles --key=value with value containing =", () => {
     const result = parseArgs(["--expr=a=b"]);
     expect(getFlag(result, "expr")).toBe("a=b");
+  });
+
+  it("collects repeatable flags", () => {
+    const result = parseArgs(["graph", "impact", "--changed", "a", "--changed=b"]);
+    expect(getFlags(result, "changed")).toEqual(["a", "b"]);
+    expect(getFlag(result, "changed")).toBe("b");
   });
 });

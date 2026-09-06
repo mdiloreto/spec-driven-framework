@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
   FileSystem,
   ContextBundle,
@@ -8,8 +8,9 @@ import type {
   OpenSpecClient,
   SpecGraph,
   GraphNode,
-  GraphEdge,
+  GraphId,
 } from "../types/index.js";
+import { createGraphId } from "../types/index.js";
 
 export interface ContextAssemblerOptions {
   maxTokens?: number;
@@ -29,6 +30,7 @@ export class ContextAssembler {
     private readonly graph: SpecGraph,
     /** Used for within-change context delegation via `openspec instructions` */
     public readonly openspec?: OpenSpecClient,
+    private readonly projectRoot = process.cwd(),
   ) {}
 
   public async assemble(
@@ -37,9 +39,10 @@ export class ContextAssembler {
     task: TaskItem,
     options: ContextAssemblerOptions = {},
   ): Promise<ContextBundle> {
-    const proposal = this.readArtifact(changePath, "proposal.md");
-    const design = this.readArtifact(changePath, "design.md");
-    const specs = this.readSpecFiles(changePath);
+    const resolvedChangePath = resolve(this.projectRoot, changePath);
+    const proposal = this.readArtifact(resolvedChangePath, "proposal.md");
+    const design = this.readArtifact(resolvedChangePath, "design.md");
+    const specs = this.readSpecFiles(resolvedChangePath);
     const upstreamSpecs = this.gatherUpstreamSpecs(changeName);
     const upstreamChanges = this.gatherUpstreamChanges(changeName);
     const relatedSpecs = this.gatherDownstreamSpecs(changeName);
@@ -124,7 +127,7 @@ export class ContextAssembler {
   // -- Graph traversal --
 
   private gatherUpstreamSpecs(changeName: string): SpecContent[] {
-    const upstreamIds = this.findUpstream(changeName);
+    const upstreamIds = this.findUpstream(createGraphId("change", changeName));
     const capabilityNodes = upstreamIds
       .map((id) => this.findNode(id))
       .filter((n): n is GraphNode => n !== undefined && n.type === "capability");
@@ -133,7 +136,7 @@ export class ContextAssembler {
   }
 
   private gatherUpstreamChanges(changeName: string): ChangeContent[] {
-    const upstreamIds = this.findUpstream(changeName);
+    const upstreamIds = this.findUpstream(createGraphId("change", changeName));
     const changeNodes = upstreamIds
       .map((id) => this.findNode(id))
       .filter((n): n is GraphNode => n !== undefined && n.type === "change");
@@ -142,28 +145,37 @@ export class ContextAssembler {
   }
 
   private gatherDownstreamSpecs(changeName: string): SpecContent[] {
-    const downstreamIds = this.findDownstream(changeName);
-    const capabilityNodes = downstreamIds
+    const changeId = createGraphId("change", changeName);
+    const relatedIds = new Set([
+      ...this.findDownstream(changeId),
+      ...this.graph.edges
+        .filter((edge) => edge.from === changeId && edge.kind === "impacts")
+        .map((edge) => edge.to),
+    ]);
+    const capabilityNodes = [...relatedIds]
       .map((id) => this.findNode(id))
       .filter((n): n is GraphNode => n !== undefined && n.type === "capability");
 
     return capabilityNodes.map((node) => this.readSpecContent(node));
   }
 
-  private findUpstream(nodeId: string): string[] {
-    const visited = new Set<string>();
+  private findUpstream(nodeId: GraphId): GraphId[] {
+    const visited = new Set<GraphId>();
     const queue = [nodeId];
 
     while (queue.length > 0) {
       const current = queue.shift()!;
-      // Follow outgoing depends_on/blocks edges: from -> to means "from depends on to"
       const dependencyEdges = this.graph.edges.filter(
-        (e) => e.from === current && isOrderingEdge(e),
+        (edge) =>
+          (edge.kind === "depends_on" && edge.from === current) ||
+          (edge.kind === "blocks" && edge.to === current) ||
+          (edge.kind === "extends" && edge.from === current),
       );
       for (const edge of dependencyEdges) {
-        if (!visited.has(edge.to)) {
-          visited.add(edge.to);
-          queue.push(edge.to);
+        const dependency = edge.kind === "blocks" ? edge.from : edge.to;
+        if (!visited.has(dependency)) {
+          visited.add(dependency);
+          queue.push(dependency);
         }
       }
     }
@@ -171,18 +183,24 @@ export class ContextAssembler {
     return [...visited];
   }
 
-  private findDownstream(nodeId: string): string[] {
-    const visited = new Set<string>();
+  private findDownstream(nodeId: GraphId): GraphId[] {
+    const visited = new Set<GraphId>();
     const queue = [nodeId];
 
     while (queue.length > 0) {
       const current = queue.shift()!;
-      // Follow reverse edges: find nodes that depend ON current
-      const dependentEdges = this.graph.edges.filter((e) => e.to === current);
+      const dependentEdges = this.graph.edges.filter(
+        (edge) =>
+          (edge.kind === "depends_on" && edge.to === current) ||
+          (edge.kind === "blocks" && edge.from === current) ||
+          (edge.kind === "extends" && edge.to === current) ||
+          (edge.kind === "impacts" && edge.to === current),
+      );
       for (const edge of dependentEdges) {
-        if (!visited.has(edge.from)) {
-          visited.add(edge.from);
-          queue.push(edge.from);
+        const dependent = edge.kind === "blocks" ? edge.to : edge.from;
+        if (!visited.has(dependent)) {
+          visited.add(dependent);
+          queue.push(dependent);
         }
       }
     }
@@ -190,7 +208,7 @@ export class ContextAssembler {
     return [...visited];
   }
 
-  private findNode(id: string): GraphNode | undefined {
+  private findNode(id: GraphId): GraphNode | undefined {
     return this.graph.nodes.find((n) => n.id === id);
   }
 
@@ -249,25 +267,26 @@ export class ContextAssembler {
   }
 
   private readSpecContent(node: GraphNode): SpecContent {
-    const specPath = join(node.path, "spec.md");
+    const specPath = join(resolve(this.projectRoot, node.path), "spec.md");
     let content = "";
     try {
       content = this.fs.readFile(specPath);
     } catch {
       // spec file may not exist at this path
     }
-    return { id: node.id, path: node.path, content };
+    return { id: node.slug, path: node.path, content };
   }
 
   private readChangeContent(node: GraphNode): ChangeContent {
-    const result: ChangeContent = { name: node.id, path: node.path };
+    const result: ChangeContent = { name: node.slug, path: node.path };
+    const changePath = resolve(this.projectRoot, node.path);
     try {
-      result.proposal = this.fs.readFile(join(node.path, "proposal.md"));
+      result.proposal = this.fs.readFile(join(changePath, "proposal.md"));
     } catch {
       // optional
     }
     try {
-      result.design = this.fs.readFile(join(node.path, "design.md"));
+      result.design = this.fs.readFile(join(changePath, "design.md"));
     } catch {
       // optional
     }
@@ -345,8 +364,4 @@ export class ContextAssembler {
       omittedSources: omitted.length > 0 ? omitted : undefined,
     };
   }
-}
-
-function isOrderingEdge(edge: GraphEdge): boolean {
-  return edge.kind === "depends_on" || edge.kind === "blocks";
 }

@@ -27,12 +27,12 @@ The system SHALL represent each OpenSpec capability and each OpenSpec change as 
 #### Scenario: Capability node
 
 - **WHEN** `openspec/specs/user-auth/spec.md` exists
-- **THEN** a node with `id: "user-auth"`, `type: "capability"`, `path: "openspec/specs/user-auth"` MUST appear in the manifest
+- **THEN** a node with `id: "capability:user-auth"`, `slug: "user-auth"`, `type: "capability"`, `path: "openspec/specs/user-auth"` MUST appear in the manifest
 
 #### Scenario: Change node with partial artifacts
 
 - **WHEN** `openspec/changes/add-oauth/` exists with `proposal.md` and `design.md` but no `tasks.md` or `specs/`
-- **THEN** a node with `id: "add-oauth"`, `type: "change"`, `artifacts: { proposal: true, design: true, specs: false, tasks: false }` MUST appear
+- **THEN** a node with `id: "change:add-oauth"`, `slug: "add-oauth"`, `type: "change"`, `artifacts: { proposal: true, design: true, specs: false, tasks: false }` MUST appear
 
 ### Requirement: Edge representation
 
@@ -41,7 +41,7 @@ The system SHALL represent relationships between nodes as directed edges with a 
 #### Scenario: Explicit dependency edge
 
 - **WHEN** change `add-payment` has frontmatter `depends-on: [{ capability: user-auth, kind: depends_on }]`
-- **THEN** an edge `{ from: "add-payment", to: "user-auth", kind: "depends_on" }` MUST appear
+- **THEN** an edge `{ from: "change:add-payment", to: "capability:user-auth", kind: "depends_on" }` MUST appear
 
 #### Scenario: Edge deduplication
 

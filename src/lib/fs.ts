@@ -3,6 +3,7 @@ import {
   writeFileSync,
   existsSync,
   readdirSync,
+  statSync,
 } from "node:fs";
 import type { FileSystem } from "../types/index.js";
 
@@ -25,5 +26,9 @@ export class NodeFileSystem implements FileSystem {
 
   public listDir(path: string): string[] {
     return readdirSync(path);
+  }
+
+  public modifiedTime(path: string): number {
+    return statSync(path).mtimeMs;
   }
 }

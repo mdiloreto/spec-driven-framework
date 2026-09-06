@@ -197,7 +197,7 @@ Token budget truncation removes least-relevant context when the bundle exceeds `
 
 - Parses `tasks.md` checkbox format into structured task items
 - Uses spec-graph topological sort to determine change execution order
-- Groups independent changes into parallel waves (Kahn's algorithm)
+- Groups independent changes into parallel waves using Graphology topological generations
 - Skips already-completed tasks (from `ilo-state.json`)
 
 ## Wave Execution Model
